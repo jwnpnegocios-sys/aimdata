@@ -86,7 +86,7 @@ function renderLog() {
       <td class="r-num" style="color:var(--sub);font-size:12px">#${r.match_number || (filtered.length - idx)}</td>
       <td ${clickAttr} style="font-size:12px;color:var(--sub);white-space:nowrap;${clickCursor}">${formatDate(r.match_date)}</td>
       <td ${clickAttr} style="font-family:'Rajdhani',sans-serif;font-weight:600;${clickCursor}">${r.map}</td>
-      ${inputMetrics.filter(m=>m!=="map").map(m => { const val=r[m]; let style="font-family:'Rajdhani',sans-serif;"; const colorVar=METRIC_COLORS[m]; if(colorVar)style+=`color:${colorVar};`; return `<td ${clickAttr} style="${style}${clickCursor}">${val!==undefined&&val!==null?(m==="time"?val+"min":val):"—"}</td>`; }).join("")}
+      ${inputMetrics.filter(m=>m!=="map").map(m => { const val=r[m]; let style="font-family:'Rajdhani',sans-serif;"; const colorVar=METRIC_COLORS[m]; if(colorVar)style+=`color:${colorVar};`; return `<td ${clickAttr} style="${style}${clickCursor}">${val!==undefined&&val!==null?(m==="time"?formatDuration(val):val):"—"}</td>`; }).join("")}
       ${calcMetrics.map(m => `<td class="r-num" style="color:${METRIC_COLORS[m]||'var(--sub)'}">${r[m]!==undefined&&r[m]!==null?r[m]:"—"}</td>`).join("")}
       <td ${clickAttr} style="text-align:center;${clickCursor}">${notesIcon}</td>
       ${actionsHtml}

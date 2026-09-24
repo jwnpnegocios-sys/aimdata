@@ -88,7 +88,7 @@ function buildMapTableHeadHtml(mapArr, metrics) {
       const meta = METRIC_MAP[mid];
       if (!meta) return;
       const colorVar = `var(--metric-${mid})`;
-      tds += `<td class="num map-col-metric" style="color:${colorVar}">${m[mid] !== undefined ? m[mid] : '—'}</td>`;
+      tds += `<td class="num map-col-metric" style="color:${colorVar}">${m[mid] !== undefined ? (mid === 'time' ? formatDuration(m[mid]) : m[mid]) : '—'}</td>`;
     });
     return `<tr>${tds}</tr>`;
   }).join("");
@@ -616,7 +616,7 @@ function renderDashboard() {
                 profile.metrics.forEach(mid => {
                   if (mid === currentSortCol) return;
                   if (m[mid] !== undefined && m[mid] !== null) {
-                    lines.push(`${METRIC_MAP[mid]?.label || mid}: ${m[mid]}`);
+                    lines.push(`${METRIC_MAP[mid]?.label || mid}: ${mid === 'time' ? formatDuration(m[mid]) : m[mid]}`);
                   }
                 });
                 if (currentSortCol !== 'games') lines.push(`${partidasLabel}: ${m.games}`);

@@ -180,7 +180,13 @@ function renderAddMatchForm() {
     html += `<div class="form-row" style="margin-bottom:12px;grid-template-columns:1fr 1fr 1fr;">`;
     for (let j = i; j < Math.min(i+3, primaryInputs.length); j++) {
       const m = primaryInputs[j]; const meta = METRIC_MAP[m];
-      html += `<div class="field" style="margin-bottom:0"><label>${meta.label}</label><input type="number" id="f-${m}" min="0" placeholder="ex: 0" oninput="updatePreview()" value="${isEditing && editMatch?.[m] !== undefined ? editMatch[m] : ''}"></div>`;
+      if (m === "time") {
+        const editMin = isEditing && editMatch?.time !== undefined ? Math.floor(editMatch.time) : '';
+        const editSec = isEditing && editMatch?.time !== undefined ? Math.round((editMatch.time - Math.floor(editMatch.time)) * 60) : '';
+        html += `<div class="field" style="margin-bottom:0"><label>${meta.label} (min : seg)</label><div style="display:flex;gap:6px;"><input type="number" id="f-time-min" min="0" placeholder="min" oninput="updatePreview()" value="${editMin}" style="width:100%;"><input type="number" id="f-time-sec" min="0" max="59" placeholder="seg" oninput="updatePreview()" value="${editSec}" style="width:100%;"></div></div>`;
+      } else {
+        html += `<div class="field" style="margin-bottom:0"><label>${meta.label}</label><input type="number" id="f-${m}" min="0" placeholder="ex: 0" oninput="updatePreview()" value="${isEditing && editMatch?.[m] !== undefined ? editMatch[m] : ''}"></div>`;
+      }
     }
     html += `</div>`;
   }
@@ -241,7 +247,9 @@ function updatePreview() {
   if (!calcMetrics.length) return;
   const kills = parseFloat(document.getElementById("f-kills")?.value);
   const deaths = parseFloat(document.getElementById("f-deaths")?.value);
-  const time = parseFloat(document.getElementById("f-time")?.value);
+  const timeMin = parseFloat(document.getElementById("f-time-min")?.value);
+  const timeSec = parseFloat(document.getElementById("f-time-sec")?.value);
+  const time = (isNaN(timeMin) ? 0 : timeMin) + (isNaN(timeSec) ? 0 : timeSec) / 60;
   calcMetrics.forEach(m => {
     const el = document.getElementById(`prev-${m}`); if (!el) return;
     let val = "—";
@@ -284,6 +292,26 @@ async function addMatch() {
   const REQUIRED_INPUTS = ['kills', 'deaths', 'time'];
 
   for (const m of inputMetrics) {
+    if (m === "time") {
+      const minEl = document.getElementById("f-time-min");
+      const secEl = document.getElementById("f-time-sec");
+      console.log(`Campos f-time-min/f-time-sec:`, minEl && secEl ? `min="${minEl.value}" seg="${secEl.value}"` : "NÃO ENCONTRADO");
+      if (!minEl || !secEl) {
+        valid = false;
+        break;
+      }
+      const minV = parseFloat(minEl.value);
+      const secV = parseFloat(secEl.value);
+      const minOk = !isNaN(minV) && minV >= 0;
+      const secOk = isNaN(secV) || (secV >= 0 && secV < 60);
+      if (!minOk || !secOk) {
+        console.log(`Campo time inválido: min="${minEl.value}" seg="${secEl.value}"`);
+        valid = false;
+        break;
+      }
+      values.time = (isNaN(minV) ? 0 : minV) + (isNaN(secV) ? 0 : secV) / 60;
+      continue;
+    }
     const el = document.getElementById(`f-${m}`);
     console.log(`Campo f-${m}:`, el ? `valor="${el.value}"` : "NÃO ENCONTRADO");
     if (!el) {
@@ -442,6 +470,10 @@ async function addMatch() {
     const el = document.getElementById(`f-${m}`);
     if (el) el.value = "";
   }
+  const timeMinClear = document.getElementById("f-time-min");
+  if (timeMinClear) timeMinClear.value = "";
+  const timeSecClear = document.getElementById("f-time-sec");
+  if (timeSecClear) timeSecClear.value = "";
   const notesEl = document.getElementById("f-notes");
   if (notesEl) notesEl.value = "";
 

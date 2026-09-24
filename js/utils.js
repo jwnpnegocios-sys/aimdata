@@ -18,6 +18,19 @@ function movingAverage(values, period) {
   return result;
 }
 
+function formatDuration(minutes) {
+  const totalSeconds = Math.round((parseFloat(minutes) || 0) * 60);
+  if (totalSeconds <= 0) return "0min";
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  const parts = [];
+  if (h > 0) parts.push(h + "h");
+  if (m > 0) parts.push(m + "min");
+  if (s > 0) parts.push(s + "s");
+  return parts.length ? parts.join(" ") : "0min";
+}
+
 function getProfile(id) { return state.profiles.find(p => p.id === (id || activeProfileId)) || null; }
 function getActiveProfile() { return getProfile(activeProfileId); }
 
