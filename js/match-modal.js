@@ -6,6 +6,8 @@
    dos valores calculados (K/D, KPM, KPD).
    ============================================================ */
 
+let editingTargetProfileId = null;
+
 function openAddMatchModal(matchId = null) {
   const profile = getActiveProfile();
   if (!profile) {
@@ -17,6 +19,7 @@ function openAddMatchModal(matchId = null) {
     return;
   }
   editingMatchId = matchId || null;
+  editingTargetProfileId = profile.id;
   document.getElementById("match-modal-overlay").classList.add("open");
   renderAddMatchForm();
 }
@@ -24,35 +27,39 @@ function openAddMatchModal(matchId = null) {
 function closeAddMatchModal() {
   document.getElementById("match-modal-overlay").classList.remove("open");
   editingMatchId = null;
+  editingTargetProfileId = null;
 }
 
 function renderModalProfileBar() {
   const inline = document.getElementById("match-modal-profile-inline");
   if (!inline) return;
-  
-  // Em modo edição, não permite troca de perfil (evita estado inconsistente)
-  if (editingMatchId !== null) {
-    inline.style.display = "none";
-    inline.innerHTML = "";
-    return;
-  }
-  
+
   const realProfiles = state.profiles.filter(p => !p.isDemo);
   if (realProfiles.length < 2) {
     inline.style.display = "none";
     inline.innerHTML = "";
     return;
   }
+
+  const isEditing = editingMatchId !== null;
+  const selectedId = isEditing ? (editingTargetProfileId || activeProfileId) : activeProfileId;
+  const onChangeHandler = isEditing ? "selectTransferTarget(this.value)" : "switchProfileInModal(this.value)";
+
   inline.style.display = "inline-block";
-  inline.innerHTML = `<select id="modal-profile-select" onchange="switchProfileInModal(this.value)" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-family:'Rajdhani',sans-serif;font-size:12px;cursor:pointer;min-width:140px;">
-    ${realProfiles.map(p => `<option value="${p.id}"${p.id === activeProfileId ? " selected" : ""}>${profileLabel(p)}</option>`).join("")}
+  inline.innerHTML = `<select id="modal-profile-select" onchange="${onChangeHandler}" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-family:'Rajdhani',sans-serif;font-size:12px;cursor:pointer;min-width:140px;">
+    ${realProfiles.map(p => `<option value="${p.id}"${p.id === selectedId ? " selected" : ""}>${profileLabel(p)}</option>`).join("")}
   </select>`;
+}
+
+function selectTransferTarget(profileId) {
+  if (!profileId) return;
+  editingTargetProfileId = profileId;
 }
 
 function switchProfileInModal(id) {
   if (!id || id === activeProfileId) return;
   switchProfile(id);
-  renderAddMatchForm();
+  renderAddMatchForm(true);
   showToast(`🎮 Perfil alterado para: ${profileLabel(getActiveProfile())}`);
 }
 
@@ -137,7 +144,22 @@ function setupMatchModalNav() {
   });
 }
 
-function renderAddMatchForm() {
+function captureMatchDraft() {
+  const draft = {};
+  document.querySelectorAll("#match-modal-body input, #match-modal-body textarea").forEach(el => {
+    if (el.id) draft[el.id] = el.value;
+  });
+  return draft;
+}
+
+function restoreMatchDraft(draft) {
+  Object.keys(draft).forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = draft[id];
+  });
+}
+
+function renderAddMatchForm(preserveDraft = false) {
   const profile = getActiveProfile();
   const body = document.getElementById("match-modal-body");
   renderModalProfileBar();
@@ -146,6 +168,7 @@ function renderAddMatchForm() {
     return;
   }
 
+  const draft = preserveDraft ? captureMatchDraft() : null;
   const isEditing = editingMatchId !== null;
   const editMatch = isEditing ? profile.matches.find(m => m.id === editingMatchId) : null;
 
@@ -226,6 +249,8 @@ function renderAddMatchForm() {
   html += `</div></div>`;
   
   body.innerHTML = html;
+
+  if (draft) restoreMatchDraft(draft);
   
   // Atualiza título e botão do modal conforme modo
   const titleEl = document.querySelector('#match-modal .modal-title > span:first-child');
@@ -392,6 +417,90 @@ async function addMatch() {
       }
     }
     
+    // ─── TRANSFERÊNCIA ENTRE PERFIS (se um destino diferente foi selecionado) ───
+    const transferTargetId = (editingTargetProfileId && editingTargetProfileId !== profile.id) ? editingTargetProfileId : null;
+    let transferTarget = null;
+    if (transferTargetId) {
+      transferTarget = getProfile(transferTargetId);
+      if (!transferTarget) {
+        showToast("⚠ Perfil de destino não encontrado");
+        return;
+      }
+      if (transferTarget.isDemo) {
+        showToast("⚠ Não é possível transferir para o perfil de demonstração");
+        return;
+      }
+      if (!transferTarget.maps.includes(updated.map)) {
+        showToast(`⚠ O perfil "${profileLabel(transferTarget)}" não possui o mapa "${updated.map}". Adicione o mapa a esse perfil e tente novamente.`);
+        return;
+      }
+      const matchInputMetrics = ["kills", "deaths", "time", "points", "damage", "assists", "position"]
+        .filter(m => updated[m] !== undefined && updated[m] !== null);
+      const missingMetrics = matchInputMetrics.filter(m => !transferTarget.metrics.includes(m));
+      if (missingMetrics.length > 0) {
+        const missingLabels = missingMetrics.map(m => METRIC_MAP[m]?.label || m).join(", ");
+        showToast(`⚠ O perfil destino não usa a(s) métrica(s): ${missingLabels}. Ative-as no perfil e tente novamente.`);
+        return;
+      }
+    }
+
+    if (transferTarget) {
+      const prevTargetRecords = getRecords(transferTarget.matches, transferTarget.metrics);
+      const originalCloudId = (originalMatch.id && typeof originalMatch.id === "string" && !originalMatch.id.startsWith("m")) ? originalMatch.id : null;
+
+      // 1) Backup antes de operação destrutiva (Regra 31 do protocolo)
+      const backupTimestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const backupBlob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+      const backupLink = document.createElement("a");
+      backupLink.href = URL.createObjectURL(backupBlob);
+      backupLink.download = `aimdata-emergency-backup-${backupTimestamp}.json`;
+      document.body.appendChild(backupLink);
+      backupLink.click();
+      document.body.removeChild(backupLink);
+      URL.revokeObjectURL(backupLink.href);
+
+      // 2) Novo ID local para a partida transferida (mesmo padrão de duplicateMatch)
+      updated.id = "m" + Date.now() + Math.random().toString(36).substr(2, 5);
+
+      // 3) Remove do perfil de origem e renumera
+      profile.matches.splice(matchIndex, 1);
+      normalizeProfileMatches(profile);
+
+      // 4) Insere no perfil destino e renumera
+      transferTarget.matches.push(updated);
+      normalizeProfileMatches(transferTarget);
+
+      saveState();
+
+      // 5) Nuvem: usa exclusivamente caminhos existentes (delete_match / upsert_match / upsert_matches)
+      try {
+        if (originalCloudId) {
+          await syncToCloud("delete_match", { profileId: profile.id, matchId: originalCloudId });
+        }
+        const newCloudId = await syncToCloud("upsert_match", { profileId: transferTarget.id, match: updated });
+        if (newCloudId) {
+          updated.id = newCloudId;
+          saveState();
+        }
+        await syncToCloud("upsert_matches", { profileId: profile.id, matches: profile.matches });
+        await syncToCloud("upsert_matches", { profileId: transferTarget.id, matches: transferTarget.matches });
+      } catch (syncErr) {
+        console.log("Sync erro na transferência:", syncErr);
+        showToast("⚠ Transferida localmente. Falha na nuvem — clique em ☁ Sync.");
+      }
+
+      const newTargetRecords = getRecords(transferTarget.matches, transferTarget.metrics);
+      checkNewRecords(prevTargetRecords, newTargetRecords);
+
+      editingMatchId = null;
+      editingTargetProfileId = null;
+      closeAddMatchModal();
+      renderLog();
+      showToast(`✓ Partida transferida para ${profileLabel(transferTarget)}`);
+      refreshAll();
+      return;
+    }
+
     // Substitui no array
     profile.matches[matchIndex] = updated;
     
@@ -476,6 +585,7 @@ async function addMatch() {
   if (timeSecClear) timeSecClear.value = "";
   const notesEl = document.getElementById("f-notes");
   if (notesEl) notesEl.value = "";
+  if (mapEl) mapEl.value = "";
 
   document.querySelectorAll("#preview .p-val").forEach(el => {
     el.textContent = "—";

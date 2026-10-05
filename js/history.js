@@ -77,18 +77,19 @@ function renderLog() {
     const notesIcon = r.notes ? `<span title="${r.notes.replace(/"/g, '&quot;')}" style="cursor:help;color:var(--brand);font-size:14px;">📝</span>` : `<span style="color:var(--muted);font-size:14px;opacity:0.3;">📝</span>`;
     const actionsHtml = profile.isDemo
       ? `<td style="color:var(--muted);font-size:11px;text-align:center;">Somente leitura</td>`
-      : `<td><button class="action-btn" onclick="duplicateMatch('${r.id}')">⧉</button><button class="action-btn del" onclick="deleteMatch('${r.id}')">✕</button></td>`;
-    
-    const clickAttr = profile.isDemo ? '' : `onclick="openAddMatchModal('${r.id}')"`;
-    const clickCursor = profile.isDemo ? '' : 'cursor:pointer;';
-    
-    return `<tr>
+      : `<td><button class="action-btn" onclick="event.stopPropagation();duplicateMatch('${r.id}')">⧉</button><button class="action-btn del" onclick="event.stopPropagation();deleteMatch('${r.id}')">✕</button></td>`;
+
+    const rowAttrs = profile.isDemo
+      ? `class="log-row is-demo"`
+      : `class="log-row" onclick="openAddMatchModal('${r.id}')"`;
+
+    return `<tr ${rowAttrs}>
       <td class="r-num" style="color:var(--sub);font-size:12px">#${r.match_number || (filtered.length - idx)}</td>
-      <td ${clickAttr} style="font-size:12px;color:var(--sub);white-space:nowrap;${clickCursor}">${formatDate(r.match_date)}</td>
-      <td ${clickAttr} style="font-family:'Rajdhani',sans-serif;font-weight:600;${clickCursor}">${r.map}</td>
-      ${inputMetrics.filter(m=>m!=="map").map(m => { const val=r[m]; let style="font-family:'Rajdhani',sans-serif;"; const colorVar=METRIC_COLORS[m]; if(colorVar)style+=`color:${colorVar};`; return `<td ${clickAttr} style="${style}${clickCursor}">${val!==undefined&&val!==null?(m==="time"?formatDuration(val):val):"—"}</td>`; }).join("")}
+      <td style="font-size:12px;color:var(--sub);white-space:nowrap;">${formatDate(r.match_date)}</td>
+      <td style="font-family:'Rajdhani',sans-serif;font-weight:600;">${r.map}</td>
+      ${inputMetrics.filter(m=>m!=="map").map(m => { const val=r[m]; let style="font-family:'Rajdhani',sans-serif;"; const colorVar=METRIC_COLORS[m]; if(colorVar)style+=`color:${colorVar};`; return `<td style="${style}">${val!==undefined&&val!==null?(m==="time"?formatDuration(val):val):"—"}</td>`; }).join("")}
       ${calcMetrics.map(m => `<td class="r-num" style="color:${METRIC_COLORS[m]||'var(--sub)'}">${r[m]!==undefined&&r[m]!==null?r[m]:"—"}</td>`).join("")}
-      <td ${clickAttr} style="text-align:center;${clickCursor}">${notesIcon}</td>
+      <td style="text-align:center;">${notesIcon}</td>
       ${actionsHtml}
     </tr>`;
   }).join("");
@@ -150,3 +151,72 @@ function duplicateMatch(id) {
   renderLog();
   showToast("✓ Partida duplicada");
 }
+
+/* ============================================================
+   TOOLTIP "CLIQUE PARA EDITAR" NAS LINHAS DO HISTÓRICO
+   Só aparece se o cursor ficar PARADO sobre a linha por
+   SHOW_DELAY ms. Some imediatamente assim que o cursor se move.
+   Elemento fixo em <body> para não ser cortado pelo scroll
+   horizontal da tabela (.log-scroll).
+   ============================================================ */
+(function setupLogRowTooltip() {
+  const SHOW_DELAY = 650;
+
+  function init() {
+    const tbody = document.getElementById("logBody");
+    if (!tbody) return;
+
+    const tip = document.createElement("div");
+    tip.id = "log-row-tooltip";
+    tip.textContent = "Clique para editar";
+    document.body.appendChild(tip);
+
+    let showTimer = null;
+
+    function hide() {
+      clearTimeout(showTimer);
+      showTimer = null;
+      tip.style.display = "none";
+    }
+
+    function schedule(x, y) {
+      clearTimeout(showTimer);
+      tip.style.display = "none";
+      showTimer = setTimeout(function() {
+        tip.style.left = (x + 14) + "px";
+        tip.style.top = (y + 16) + "px";
+        tip.style.display = "block";
+      }, SHOW_DELAY);
+    }
+
+    function isEditableRow(target) {
+      const row = target.closest("tr.log-row");
+      if (!row || row.classList.contains("is-demo")) return false;
+      if (target.closest(".action-btn")) return false;
+      return true;
+    }
+
+    tbody.addEventListener("mouseover", function(e) {
+      if (isEditableRow(e.target)) schedule(e.clientX, e.clientY);
+      else hide();
+    });
+
+    tbody.addEventListener("mousemove", function(e) {
+      if (isEditableRow(e.target)) schedule(e.clientX, e.clientY);
+      else hide();
+    });
+
+    tbody.addEventListener("mouseout", function(e) {
+      const row = e.target.closest("tr.log-row");
+      if (!row) return;
+      if (e.relatedTarget && row.contains(e.relatedTarget)) return;
+      hide();
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
