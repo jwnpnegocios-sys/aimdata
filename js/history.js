@@ -5,6 +5,14 @@
    Monta a tabela de partidas com filtro por mapa,
    e a linha de edição inline quando o usuário clica em ✎.
    ============================================================ */
+function syncLogBarHeight() {
+  const bar = document.querySelector(".log-bar");
+  if (!bar) return;
+  const h = bar.offsetHeight;
+  if (h > 0) document.documentElement.style.setProperty("--log-bar-h", h + "px");
+}
+window.addEventListener("resize", syncLogBarHeight);
+
 function renderLog() {
   const profile = getActiveProfile();
   if (!profile) {
@@ -93,6 +101,7 @@ function renderLog() {
       ${actionsHtml}
     </tr>`;
   }).join("");
+  syncLogBarHeight();
 }
 
 function sortLogTable(col) {
