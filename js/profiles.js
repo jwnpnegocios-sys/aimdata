@@ -39,8 +39,27 @@ function openModal(mode, profileId) {
 }
 function renderModalTags() { document.getElementById("modalTagList").innerHTML=modalMaps.map((m,i)=>`<div class="tag">${m}<button class="tag-remove" onclick="removeModalMap(${i})">×</button></div>`).join(""); }
 function addModalMap() { const inp=document.getElementById("m-map-input"); const val=inp.value.trim(); if(!val)return; if(modalMaps.includes(val)){showToast("Mapa já existe");return;} modalMaps.push(val); renderModalTags(); inp.value=""; }
-function removeModalMap(i) { modalMaps.splice(i,1); renderModalTags(); }
-
+function removeModalMap(i) {
+  const mapName = modalMaps[i];
+  if (typeof mapName !== 'string') { modalMaps.splice(i,1); renderModalTags(); return; }
+  const p = (modalMode === "edit" && modalProfileId) ? getProfile(modalProfileId) : null;
+  if (p && Array.isArray(p.matches)) {
+    const orphans = p.matches.filter(m => mapInList(m.map, [mapName])).length;
+    if (orphans > 0) {
+      const ok = confirm(
+        `O mapa "${mapName}" tem ${orphans} partida(s) registrada(s).\n\n` +
+        `Se você remover este mapa do perfil, as partidas NÃO serão apagadas, mas:\n` +
+        `• o mapa deixa de aparecer no filtro do Histórico;\n` +
+        `• deixa de sair no agrupamento por mapa (gráfico e tabela);\n` +
+        `• a partida continua visível na lista normalmente.\n\n` +
+        `Remover o mapa mesmo assim?`
+      );
+      if (!ok) return;
+    }
+  }
+  modalMaps.splice(i,1);
+  renderModalTags();
+}
 function saveModal() {
   const game=document.getElementById("m-game").value.trim();
   const mode=document.getElementById("m-mode").value.trim();

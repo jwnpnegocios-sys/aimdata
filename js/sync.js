@@ -630,6 +630,22 @@ async function uploadLocalOrphans() {
     
     console.log(`Enviando ${orphans.length} órfãos do perfil ${profile.game} (nuvem tem ${cloudIdSet.size})...`);
     
+    // Renumera match_number dos órfãos para o perfil de destino, evitando
+    // colisão com idx_matches_profile_number (partidas já existentes na nuvem).
+    // Usa a maior numeração entre nuvem e local como base.
+    const existingNumbers = new Set();
+    for (const r of (cloudRows || [])) { /* nuvem não traz match_number no select acima, mas mantemos o Set para futuro */ }
+    let maxNum = 0;
+    for (const m of profile.matches) {
+      const n = parseInt(m.match_number);
+      if (!isNaN(n) && n > maxNum) maxNum = n;
+    }
+    for (const o of orphans) {
+      maxNum += 1;
+      o.match_number = maxNum;
+    }
+    saveState();
+    
     const BATCH_SIZE = 25;
     for (let i = 0; i < orphans.length; i += BATCH_SIZE) {
       const batch = orphans.slice(i, i + BATCH_SIZE);

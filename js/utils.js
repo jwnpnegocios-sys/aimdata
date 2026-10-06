@@ -241,8 +241,18 @@ function toLocalTime(isoString) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function showToast(msg) {
-  const t=document.getElementById("toast"); t.textContent=msg; t.style.display="block";
+function mapEquals(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const norm = s => s.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return norm(a) === norm(b);
+}
+
+function mapInList(mapName, mapList) {
+  if (!Array.isArray(mapList)) return false;
+  return mapList.some(m => mapEquals(mapName, m));
+}
+
+function showToast(msg) {  const t=document.getElementById("toast"); t.textContent=msg; t.style.display="block";
   clearTimeout(t._timer); t._timer=setTimeout(()=>{t.style.display="none";},2400);
 }
 

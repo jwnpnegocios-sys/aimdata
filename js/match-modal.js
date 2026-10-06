@@ -430,7 +430,7 @@ async function addMatch() {
         showToast("⚠ Não é possível transferir para o perfil de demonstração");
         return;
       }
-      if (!transferTarget.maps.includes(updated.map)) {
+      if (!mapInList(updated.map, transferTarget.maps)) {
         showToast(`⚠ O perfil "${profileLabel(transferTarget)}" não possui o mapa "${updated.map}". Adicione o mapa a esse perfil e tente novamente.`);
         return;
       }
@@ -466,27 +466,36 @@ async function addMatch() {
       profile.matches.splice(matchIndex, 1);
       normalizeProfileMatches(profile);
 
-      // 4) Insere no perfil destino e renumera
+      // 4) Insere no perfil destino e renumera — o normalizeProfileMatches
+      //    atribui um match_number NOVO e correto para o perfil de destino,
+      //    evitando colisão com idx_matches_profile_number na nuvem.
       transferTarget.matches.push(updated);
       normalizeProfileMatches(transferTarget);
+      const transferredMatch = transferTarget.matches.find(m => m.id === updated.id);
 
       saveState();
 
-      // 5) Nuvem: usa exclusivamente caminhos existentes (delete_match / upsert_match / upsert_matches)
+      // 5) Nuvem: usa exclusivamente caminhos existentes (delete_match / upsert_match / upsert_matches).
+      //    Envia a versão JÁ NORMALIZADA (transferredMatch), não o objeto cru updated,
+      //    para garantir que match_number seja o do perfil de destino.
+      let syncOk = true;
       try {
         if (originalCloudId) {
           await syncToCloud("delete_match", { profileId: profile.id, matchId: originalCloudId });
         }
-        const newCloudId = await syncToCloud("upsert_match", { profileId: transferTarget.id, match: updated });
-        if (newCloudId) {
-          updated.id = newCloudId;
-          saveState();
+        if (transferredMatch) {
+          const newCloudId = await syncToCloud("upsert_match", { profileId: transferTarget.id, match: transferredMatch });
+          if (newCloudId) {
+            transferredMatch.id = newCloudId;
+            updated.id = newCloudId;
+            saveState();
+          }
         }
         await syncToCloud("upsert_matches", { profileId: profile.id, matches: profile.matches });
         await syncToCloud("upsert_matches", { profileId: transferTarget.id, matches: transferTarget.matches });
       } catch (syncErr) {
         console.log("Sync erro na transferência:", syncErr);
-        showToast("⚠ Transferida localmente. Falha na nuvem — clique em ☁ Sync.");
+        syncOk = false;
       }
 
       const newTargetRecords = getRecords(transferTarget.matches, transferTarget.metrics);
@@ -496,7 +505,9 @@ async function addMatch() {
       editingTargetProfileId = null;
       closeAddMatchModal();
       renderLog();
-      showToast(`✓ Partida transferida para ${profileLabel(transferTarget)}`);
+      showToast(syncOk
+        ? `✓ Partida transferida para ${profileLabel(transferTarget)}`
+        : `✓ Partida transferida localmente. ⚠ Nuvem pendente — clique em ☁ Sync.`);
       refreshAll();
       return;
     }
