@@ -208,7 +208,8 @@ function renderAddMatchForm(preserveDraft = false) {
         const editSec = isEditing && editMatch?.time !== undefined ? Math.round((editMatch.time - Math.floor(editMatch.time)) * 60) : '';
         html += `<div class="field" style="margin-bottom:0"><label>${meta.label} (min : seg)</label><div style="display:flex;gap:6px;"><input type="number" id="f-time-min" min="0" placeholder="min" oninput="updatePreview()" value="${editMin}" style="width:100%;"><input type="number" id="f-time-sec" min="0" max="59" placeholder="seg" oninput="updatePreview()" value="${editSec}" style="width:100%;"></div></div>`;
       } else {
-        html += `<div class="field" style="margin-bottom:0"><label>${meta.label}</label><input type="number" id="f-${m}" min="0" placeholder="ex: 0" oninput="updatePreview()" value="${isEditing && editMatch?.[m] !== undefined ? editMatch[m] : ''}"></div>`;
+        const editVal = (isEditing && editMatch?.[m] !== undefined && editMatch?.[m] !== null) ? editMatch[m] : '';
+        html += `<div class="field" style="margin-bottom:0"><label>${meta.label}</label><input type="number" id="f-${m}" min="0" placeholder="ex: 0" oninput="updatePreview()" value="${editVal}"></div>`;
       }
     }
     html += `</div>`;
@@ -227,7 +228,8 @@ function renderAddMatchForm(preserveDraft = false) {
       html += `<div class="form-row" style="margin-bottom:12px;grid-template-columns:1fr 1fr 1fr;">`;
       for (let j = i; j < Math.min(i+3, secondaryInputs.length); j++) {
         const m = secondaryInputs[j]; const meta = METRIC_MAP[m];
-        html += `<div class="field" style="margin-bottom:0"><label>${meta.label}</label><input type="number" id="f-${m}" min="0" placeholder="ex: 0" oninput="updatePreview()" value="${isEditing && editMatch?.[m] !== undefined ? editMatch[m] : ''}"></div>`;
+        const editVal = (isEditing && editMatch?.[m] !== undefined && editMatch?.[m] !== null) ? editMatch[m] : '';
+        html += `<div class="field" style="margin-bottom:0"><label>${meta.label}</label><input type="number" id="f-${m}" min="0" placeholder="ex: 0" oninput="updatePreview()" value="${editVal}"></div>`;
       }
       html += `</div>`;
     }

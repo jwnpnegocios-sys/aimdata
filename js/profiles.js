@@ -37,8 +37,52 @@ function openModal(mode, profileId) {
   document.getElementById("modal-actions").innerHTML=`<button class="modal-cancel" onclick="closeModal()">Cancelar</button><button class="modal-save" onclick="saveModal()">Salvar</button>`;
   document.getElementById("modal-overlay").classList.add("open");
 }
-function renderModalTags() { document.getElementById("modalTagList").innerHTML=modalMaps.map((m,i)=>`<div class="tag">${m}<button class="tag-remove" onclick="removeModalMap(${i})">×</button></div>`).join(""); }
-function addModalMap() { const inp=document.getElementById("m-map-input"); const val=inp.value.trim(); if(!val)return; if(modalMaps.includes(val)){showToast("Mapa já existe");return;} modalMaps.push(val); renderModalTags(); inp.value=""; }
+function renderModalTags() { document.getElementById("modalTagList").innerHTML=modalMaps.map((m,i)=>`<div class="tag"><span class="tag-name" onclick="renameModalMap(${i})" title="Clique para renomear" style="cursor:pointer;">${m}</span><button class="tag-remove" onclick="removeModalMap(${i})">×</button></div>`).join(""); }
+let renameModalState = null;
+function renameModalMap(i) {
+  const oldName = modalMaps[i];
+  if (typeof oldName !== 'string') return;
+  const p = (modalMode === "edit" && modalProfileId) ? getProfile(modalProfileId) : null;
+  const affected = (p && Array.isArray(p.matches)) ? p.matches.filter(m => mapEquals(m.map, oldName)).length : 0;
+  renameModalState = { index: i, oldName, affected };
+  document.getElementById("modal-title").textContent = "Renomear mapa";
+  document.getElementById("modal-body").innerHTML = `<div class="field"><label>Novo nome do mapa</label><input type="text" id="rename-map-input" value="${oldName.replace(/"/g, '&quot;')}" autocomplete="off" style="width:100%;">${affected > 0 ? `<div style="margin-top:8px;font-size:12px;color:var(--sub);line-height:1.6;">Este mapa tem <strong style="color:var(--text);">${affected} partida(s)</strong>. Todas serão atualizadas para o novo nome.</div>` : ""}</div>`;
+  document.getElementById("modal-actions").innerHTML = `<button class="modal-cancel" onclick="cancelRenameMap()">Cancelar</button><button class="modal-save" onclick="confirmRenameMap()">Renomear</button>`;
+  document.getElementById("modal-overlay").classList.add("open");
+  setTimeout(() => { const inp = document.getElementById("rename-map-input"); if (inp) { inp.focus(); inp.select(); } }, 0);
+}
+function cancelRenameMap() { renameModalState = null; closeModal(); openModal(modalMode, modalProfileId); }
+function confirmRenameMap() {
+  if (!renameModalState) return;
+  const { index, oldName, affected } = renameModalState;
+  const newName = (document.getElementById("rename-map-input")?.value || "").trim();
+  if (!newName) { showToast("⚠ Informe o novo nome"); return; }
+  if (mapEquals(newName, oldName)) { renameModalState = null; closeModal(); openModal(modalMode, modalProfileId); return; }
+  const dupIndex = modalMaps.findIndex((m, idx) => idx !== index && mapEquals(newName, m));
+  if (dupIndex !== -1) { showToast(`⚠ Já existe um mapa "${modalMaps[dupIndex]}" (ignorando maiúsculas/acentos)`); return; }
+  const p = (modalMode === "edit" && modalProfileId) ? getProfile(modalProfileId) : null;
+  if (p && Array.isArray(p.maps)) {
+    const mapIdx = p.maps.findIndex(m => mapEquals(m, oldName));
+    if (mapIdx !== -1) p.maps[mapIdx] = newName;
+  }
+  if (affected > 0 && p && Array.isArray(p.matches)) {
+    p.matches.forEach(m => { if (mapEquals(m.map, oldName)) m.map = newName; });
+  }
+  if (p) {
+    saveState();
+    if (currentUser && supabaseClient) {
+      syncProfileToCloud(p);
+      if (affected > 0) syncToCloud("upsert_matches", { profileId: p.id, matches: p.matches });
+    }
+  }
+  modalMaps[index] = newName;
+  const idx = index;
+  renameModalState = null;
+  closeModal();
+  openModal(modalMode, modalProfileId);
+  showToast("✓ Mapa renomeado");
+}function addModalMap() { const inp=document.getElementById("m-map-input"); const val=inp.value.trim(); if(!val)return; if(modalMaps.includes(val)){showToast("Mapa já existe");return;} modalMaps.push(val); renderModalTags(); inp.value=""; }
+
 function removeModalMap(i) {
   const mapName = modalMaps[i];
   if (typeof mapName !== 'string') { modalMaps.splice(i,1); renderModalTags(); return; }

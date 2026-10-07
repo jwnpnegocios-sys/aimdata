@@ -85,7 +85,7 @@ function renderLog() {
     const notesIcon = r.notes ? `<span title="${r.notes.replace(/"/g, '&quot;')}" style="cursor:help;color:var(--brand);font-size:14px;">📝</span>` : `<span style="color:var(--muted);font-size:14px;opacity:0.3;">📝</span>`;
     const actionsHtml = profile.isDemo
       ? `<td style="color:var(--muted);font-size:11px;text-align:center;">Somente leitura</td>`
-      : `<td><button class="action-btn" onclick="event.stopPropagation();duplicateMatch('${r.id}')">⧉</button><button class="action-btn del" onclick="event.stopPropagation();deleteMatch('${r.id}')">✕</button></td>`;
+      : `<td class="row-actions"><button class="action-btn" title="Editar" onclick="event.stopPropagation();openAddMatchModal('${r.id}')">✎</button><button class="action-btn" title="Duplicar" onclick="event.stopPropagation();duplicateMatch('${r.id}')">⧉</button><button class="action-btn del" title="Excluir" onclick="event.stopPropagation();deleteMatch('${r.id}')">🗑</button></td>`;
 
     const rowAttrs = profile.isDemo
       ? `class="log-row is-demo"`

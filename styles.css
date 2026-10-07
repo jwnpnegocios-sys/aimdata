@@ -170,6 +170,24 @@ canvas{display:block;width:100%!important;}
 .log-row{cursor:pointer;}
 .log-row.is-demo{cursor:default;}
 
+.log-row .row-actions { white-space: nowrap; }
+.log-row .row-actions .action-btn {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  pointer-events: none;
+}
+.log-row:hover .row-actions .action-btn,
+.log-row:focus-within .row-actions .action-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: none) {
+  .log-row .row-actions .action-btn {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 /* Tooltip "Clique para editar" das linhas do histórico */
 #log-row-tooltip{
   position:fixed;
