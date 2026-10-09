@@ -91,7 +91,7 @@ function renderLog() {
 
     const rowAttrs = profile.isDemo
       ? `class="log-row is-demo"`
-      : `class="log-row" onclick="openAddMatchModal('${r.id}')"`;
+      : `class="log-row" data-match-id="${r.id}" onclick="openAddMatchModal('${r.id}')"`;
 
     return `<tr ${rowAttrs}>
       <td class="r-num" style="color:var(--sub);font-size:12px">${profile.isDemo ? "" : `<input type="checkbox" class="row-check" ${selectedMatchIds.has(r.id) ? "checked" : ""} onclick="event.stopPropagation()" onchange="toggleMatchSelection('${r.id}', this.checked)">`}#${r.match_number || (filtered.length - idx)}</td>
@@ -372,6 +372,98 @@ async function confirmBulkDelete() {
       if (e.relatedTarget && row.contains(e.relatedTarget)) return;
       hide();
     });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+
+/* ============================================================
+   LONG-PRESS NAS LINHAS DO HISTÓRICO
+   Toque/clique curto → abre o editor.
+   Segurar 500 ms → seleciona a linha (marca o checkbox e
+   mostra a barra de ações). Usa Pointer Events, então
+   funciona igual no mobile e no PC.
+   ============================================================ */
+(function setupLogRowLongPress() {
+  const HOLD_MS = 500;
+  const MOVE_TOLERANCE = 10;
+
+  function init() {
+    const tbody = document.getElementById("logBody");
+    if (!tbody) return;
+
+    let timer = null;
+    let startX = 0;
+    let startY = 0;
+    let longPress = false;
+
+    function cancel() {
+      clearTimeout(timer);
+      timer = null;
+    }
+
+    function isActionTarget(target) {
+      return !!target.closest(".action-btn") || !!target.closest("input") || !!target.closest("label");
+    }
+
+    function rowFromTarget(target) {
+      const row = target.closest("tr.log-row");
+      if (!row || row.classList.contains("is-demo")) return null;
+      return row;
+    }
+
+    function selectRow(row) {
+      const id = row.dataset.matchId;
+      if (!id) return;
+      const cb = row.querySelector(".row-check");
+      if (cb) {
+        if (cb.checked) return;
+        cb.checked = true;
+      }
+      toggleMatchSelection(id, true);
+    }
+
+    tbody.addEventListener("pointerdown", function(e) {
+      if (e.button !== 0 || !e.isPrimary) return;
+      const row = rowFromTarget(e.target);
+      if (!row || isActionTarget(e.target)) return;
+      longPress = false;
+      startX = e.clientX;
+      startY = e.clientY;
+      cancel();
+      timer = setTimeout(function() {
+        timer = null;
+        longPress = true;
+        selectRow(row);
+        if (navigator.vibrate) navigator.vibrate(15);
+      }, HOLD_MS);
+    });
+
+    document.addEventListener("pointermove", function(e) {
+      if (!timer) return;
+      if (Math.abs(e.clientX - startX) > MOVE_TOLERANCE || Math.abs(e.clientY - startY) > MOVE_TOLERANCE) {
+        cancel();
+      }
+    });
+
+    document.addEventListener("pointerup", function() {
+      cancel();
+    });
+
+    document.addEventListener("pointercancel", function() {
+      cancel();
+    });
+
+    tbody.addEventListener("click", function(e) {
+      if (!longPress) return;
+      e.preventDefault();
+      e.stopPropagation();
+      longPress = false;
+    }, true);
   }
 
   if (document.readyState === "loading") {
