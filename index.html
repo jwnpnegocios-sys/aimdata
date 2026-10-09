@@ -100,6 +100,13 @@
         </div>
 
         <div class="log-count" id="logCount"></div>
+        <div class="bulk-bar" id="bulkBar">
+          <span class="bulk-count" id="bulkCount">0 selecionadas</span>
+          <button class="bulk-btn" onclick="bulkSelectAll()">Selecionar tudo</button>
+          <button class="bulk-btn" onclick="bulkDuplicate()">⧉ Duplicar</button>
+          <button class="bulk-btn danger" onclick="bulkDelete()">🗑 Excluir</button>
+          <button class="bulk-btn" onclick="bulkClear()">Limpar seleção</button>
+        </div>
       </div>
       <div class="log-scroll">
         <table class="log-table" id="logTable">

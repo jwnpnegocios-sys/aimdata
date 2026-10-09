@@ -26,6 +26,8 @@ function renderLog() {
   const calcMetrics = metrics.filter(m => METRIC_MAP[m]?.type === "calc");
   const filter = dashboardMapFilter;
   const filtered = filter ? profile.matches.filter(r => r.map === filter) : profile.matches;
+  const visibleIds = new Set(filtered.map(r => r.id));
+  [...selectedMatchIds].forEach(id => { if (!visibleIds.has(id)) selectedMatchIds.delete(id); });
   document.getElementById("logCount").textContent = `${filtered.length} partidas`;
 
   const mapFilterLabel = document.getElementById('logMapFilterLabel');
@@ -92,7 +94,7 @@ function renderLog() {
       : `class="log-row" onclick="openAddMatchModal('${r.id}')"`;
 
     return `<tr ${rowAttrs}>
-      <td class="r-num" style="color:var(--sub);font-size:12px">#${r.match_number || (filtered.length - idx)}</td>
+      <td class="r-num" style="color:var(--sub);font-size:12px">${profile.isDemo ? "" : `<input type="checkbox" class="row-check" ${selectedMatchIds.has(r.id) ? "checked" : ""} onclick="event.stopPropagation()" onchange="toggleMatchSelection('${r.id}', this.checked)">`}#${r.match_number || (filtered.length - idx)}</td>
       <td style="font-size:12px;color:var(--sub);white-space:nowrap;">${formatDate(r.match_date)}</td>
       <td style="font-family:'Rajdhani',sans-serif;font-weight:600;">${r.map}</td>
       ${inputMetrics.filter(m=>m!=="map").map(m => { const val=r[m]; let style="font-family:'Rajdhani',sans-serif;"; const colorVar=METRIC_COLORS[m]; if(colorVar)style+=`color:${colorVar};`; return `<td style="${style}">${val!==undefined&&val!==null?(m==="time"?formatDuration(val):val):"—"}</td>`; }).join("")}
@@ -102,6 +104,7 @@ function renderLog() {
     </tr>`;
   }).join("");
   syncLogBarHeight();
+  updateBulkBar();
 }
 
 function sortLogTable(col) {
@@ -159,6 +162,154 @@ function duplicateMatch(id) {
 
   renderLog();
   showToast("✓ Partida duplicada");
+}
+
+function toggleMatchSelection(id, checked) {
+  if (checked) selectedMatchIds.add(id);
+  else selectedMatchIds.delete(id);
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  const bar = document.getElementById("bulkBar");
+  const count = document.getElementById("bulkCount");
+  if (!bar || !count) return;
+  const n = selectedMatchIds.size;
+  bar.style.display = n > 0 ? "flex" : "none";
+  count.textContent = n === 1 ? "1 selecionada" : `${n} selecionadas`;
+  syncLogBarHeight();
+}
+
+function bulkSelectAll() {
+  const profile = getActiveProfile();
+  if (!profile || profile.isDemo) return;
+  const visible = dashboardMapFilter ? profile.matches.filter(r => r.map === dashboardMapFilter) : profile.matches;
+  visible.forEach(r => selectedMatchIds.add(r.id));
+  renderLog();
+}
+
+function bulkClear() {
+  selectedMatchIds.clear();
+  renderLog();
+}
+
+async function bulkDuplicate() {
+  if (bulkActionBusy) return;
+  const profile = getActiveProfile();
+  if (!profile) return;
+  if (profile.isDemo) {
+    showToast("⚠ Não é possível duplicar partidas do perfil de demonstração");
+    return;
+  }
+  const originals = profile.matches.filter(m => selectedMatchIds.has(m.id));
+  if (originals.length === 0) {
+    showToast("⚠ Nenhuma partida selecionada");
+    return;
+  }
+
+  bulkActionBusy = true;
+  try {
+    const baseTime = Date.now();
+    const copies = originals.map((original, i) => {
+      const copy = { ...original };
+      copy.id = "m" + Date.now() + Math.random().toString(36).substr(2, 5);
+      copy.match_date = new Date(baseTime + i).toISOString();
+      return copy;
+    });
+    profile.matches.push(...copies);
+    normalizeProfileMatches(profile);
+    selectedMatchIds.clear();
+    saveState();
+    renderLog();
+    showToast(`✓ ${copies.length} partida(s) duplicada(s)`);
+
+    if (currentUser && supabaseClient) {
+      for (const copy of copies) {
+        const cloudId = await syncToCloud("upsert_match", { profileId: profile.id, match: copy });
+        if (cloudId) copy.id = cloudId;
+      }
+      saveState();
+    }
+  } finally {
+    bulkActionBusy = false;
+  }
+}
+
+function bulkDelete() {
+  if (bulkActionBusy) return;
+  const profile = getActiveProfile();
+  if (!profile || profile.isDemo) return;
+  const count = profile.matches.filter(m => selectedMatchIds.has(m.id)).length;
+  if (count === 0) {
+    showToast("⚠ Nenhuma partida selecionada");
+    return;
+  }
+  closeModal();
+  document.getElementById("modal-title").textContent = "Excluir partidas selecionadas?";
+  document.getElementById("modal-body").innerHTML = `
+    <p style="font-size:13px;color:var(--sub);line-height:1.7;margin-bottom:12px;">
+      ${count} partida(s) serão removidas permanentemente${currentUser ? ", inclusive da nuvem" : ""}. Não há desfazer.
+    </p>
+    <p style="font-size:12px;color:var(--muted);line-height:1.6;">
+      Um arquivo de backup será baixado automaticamente antes da exclusão.
+    </p>
+  `;
+  document.getElementById("modal-actions").innerHTML = `
+    <button class="modal-cancel" onclick="closeModal()">Cancelar</button>
+    <button class="modal-delete" style="margin-right:0;" onclick="confirmBulkDelete()">Excluir ${count}</button>
+  `;
+  document.getElementById("modal-overlay").classList.add("open");
+}
+
+async function confirmBulkDelete() {
+  if (bulkActionBusy) return;
+  const profile = getActiveProfile();
+  if (!profile || profile.isDemo) {
+    closeModal();
+    return;
+  }
+  const idsToDelete = profile.matches.filter(m => selectedMatchIds.has(m.id)).map(m => m.id);
+  closeModal();
+  if (idsToDelete.length === 0) return;
+
+  bulkActionBusy = true;
+  try {
+    // Regra 31: backup antes de operação destrutiva em massa
+    generateEmergencyBackup();
+
+    const hasCloudMatches = idsToDelete.some(id => typeof id === "string" && !id.startsWith("m"));
+    const syncEnabled = !!(currentUser && supabaseClient && hasCloudMatches);
+
+    // 1) Nuvem primeiro: se falhar, nada é apagado localmente
+    if (syncEnabled) {
+      const deletedRows = await syncToCloud("delete_matches", { profileId: profile.id, matchIds: idsToDelete });
+      if (!Array.isArray(deletedRows)) {
+        showToast("⚠ Falha ao excluir na nuvem. Nenhuma partida foi removida localmente. Backup baixado.");
+        return;
+      }
+    }
+
+    // 2) Local: remove, renumera e salva
+    const deleteSet = new Set(idsToDelete);
+    profile.matches = profile.matches.filter(m => !deleteSet.has(m.id));
+    normalizeProfileMatches(profile);
+    selectedMatchIds.clear();
+    saveState();
+    renderLog();
+
+    // 3) Nuvem: envia a renumeração numa única transação
+    if (syncEnabled) {
+      const renumbered = await syncToCloud("upsert_matches", { profileId: profile.id, matches: profile.matches });
+      if (!Array.isArray(renumbered)) {
+        showToast("⚠ Partidas removidas, mas a numeração não foi atualizada na nuvem.");
+        return;
+      }
+    }
+
+    showToast(`✓ ${idsToDelete.length} partida(s) removida(s)`);
+  } finally {
+    bulkActionBusy = false;
+  }
 }
 
 /* ============================================================

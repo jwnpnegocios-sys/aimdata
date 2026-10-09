@@ -17,6 +17,8 @@ let evolutionTab = "kd";
 let recordDotsVisible = localStorage.getItem('gt_recordDots') !== 'false';
 let mapRankVisible = localStorage.getItem('gt_mapRankVisible') !== 'false';
 let dashboardMetricTab = null;
+let selectedMatchIds = new Set();
+let bulkActionBusy = false;
 
 /* === FILTRO GLOBAL DO DASHBOARD === */
 const DASH_PRESETS = [10, 30, 90, null]; // null = Total

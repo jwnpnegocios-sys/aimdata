@@ -444,6 +444,27 @@ async function syncToCloud(operation, data) {
       if (error) throw error;
       if (!deletedMatch) throw new Error("Partida não encontrada para deletar na nuvem");
       showToast("☁ Partida removida da nuvem");
+    } else if (operation === "delete_matches") {
+      // Remove várias partidas em lotes. Devolve as linhas efetivamente apagadas.
+      // Array = sem erro (mesmo que menos linhas que o pedido, ex.: já apagadas antes).
+      const idsToDelete = (data.matchIds || []).filter(
+        id => typeof id === 'string' && !id.startsWith('m')
+      );
+      if (idsToDelete.length === 0) return [];
+      const BATCH_SIZE = 50;
+      const deletedAll = [];
+      for (let i = 0; i < idsToDelete.length; i += BATCH_SIZE) {
+        const batch = idsToDelete.slice(i, i + BATCH_SIZE);
+        const { data: deletedRows, error } = await supabaseClient
+          .from("matches")
+          .delete()
+          .in("id", batch)
+          .eq("profile_id", cloudProfileId)
+          .select("id");
+        if (error) throw error;
+        deletedAll.push(...(deletedRows || []));
+      }
+      return deletedAll;
     } else if (operation === "upsert_goal") {
       if (data.value > 0) {
         const { data: goalData, error } = await supabaseClient

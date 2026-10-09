@@ -152,7 +152,10 @@ canvas{display:block;width:100%!important;}
 .log-count{margin-left:auto;font-size:12px;color:var(--sub);align-self:center;}
 .log-scroll{overflow:visible;}
 @media (max-width:900px){
+  .log-scroll{overflow:visible;}
+@media (max-width:900px){
   .log-scroll{overflow-x:auto;}
+}
 }
 .log-table{width:100%;border-collapse:collapse;min-width:500px;}
 .log-table th{text-align:left;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;
@@ -169,6 +172,14 @@ canvas{display:block;width:100%!important;}
 /* Linha do histórico clicável (abre o editor) */
 .log-row{cursor:pointer;}
 .log-row.is-demo{cursor:default;}
+
+.row-check{width:auto;padding:0;margin:0 6px 0 0;vertical-align:middle;accent-color:var(--brand);cursor:pointer;}
+.bulk-bar{flex-basis:100%;display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;background:var(--surface);border:1px solid var(--brand);}
+.bulk-count{font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--brand);margin-right:8px;}
+.bulk-btn{background:transparent;color:var(--sub);border:1px solid var(--border);padding:5px 12px;font-size:11px;font-family:'Rajdhani',sans-serif;}
+.bulk-btn:hover{border-color:var(--brand);color:var(--brand);}
+.bulk-btn.danger{color:var(--danger);}
+.bulk-btn.danger:hover{border-color:var(--danger);color:var(--danger);}
 
 .log-row .row-actions { white-space: nowrap; }
 .log-row .row-actions .action-btn {
@@ -591,7 +602,7 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:16px 0;}
 /* Coluna # */
 .log-table th:nth-child(1),
 .log-table td:nth-child(1) {
-  width: 44px;
+  width: 70px;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
