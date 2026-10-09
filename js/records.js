@@ -50,7 +50,7 @@ function showRecordToast(msg, cls) {
 
 function handleRecordHover(e) {
   const chart = charts["evolution"];
-  if (!chart || !chart._recordDotsPositions || !chart._recordDotsPositions.length) {
+  if (!chart || chart.getDatasetMeta(0).hidden) {
     hideRecordTooltip();
     return;
   }
@@ -60,22 +60,30 @@ function handleRecordHover(e) {
   const mouseX = e.clientX - rect.left;
   const mouseY = e.clientY - rect.top;
   
-  let hit = null;
-  for (const dot of chart._recordDotsPositions) {
-    const dx = mouseX - dot.x;
-    const dy = mouseY - dot.y;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    if (dist <= 14) {
-      hit = dot;
-      break;
-    }
+  const area = chart.chartArea;
+  const insideArea = mouseX >= area.left && mouseX <= area.right && mouseY >= area.top && mouseY <= area.bottom;
+
+  let hitIndex = -1;
+  let nearestDist = Infinity;
+  if (insideArea) {
+    chart.getDatasetMeta(0).data.forEach((point, i) => {
+      const dist = Math.abs(mouseX - point.x);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        hitIndex = i;
+      }
+    });
   }
   
-  if (hit) {
-    const match = chart._matchesUsed[hit.index];
+  if (hitIndex !== -1) {
+    const match = chart._matchesUsed[hitIndex];
     if (match) {
-      showRecordTooltip(e.clientX, e.clientY, match, hit.rank);
-      canvas.style.cursor = 'pointer';
+      let rank = null;
+      if (chart.options.plugins.recordDots?.enabled && chart._recordDotsPositions) {
+        const recordDot = chart._recordDotsPositions.find(d => d.index === hitIndex);
+        if (recordDot) rank = recordDot.rank;
+      }
+      showRecordTooltip(e.clientX, e.clientY, match, rank);
       return;
     }
   }
@@ -86,11 +94,13 @@ function handleRecordHover(e) {
 
 function showRecordTooltip(clientX, clientY, match, rank) {
   const t = document.getElementById('record-tooltip');
-  const medal = RECORD_MEDALS[rank];
+  const medal = rank !== null ? RECORD_MEDALS[rank] : null;
   const profile = getActiveProfile();
   const metrics = profile.metrics;
   
-  let html = `<div class="rt-header"><span class="rt-medal">${medal.label.split(' ')[0]}</span><span class="rt-title" style="color:${medal.color}">${medal.rank} — Partida #${match.match_number || match.id}</span></div>`;
+  let html = medal
+    ? `<div class="rt-header"><span class="rt-medal">${medal.label.split(' ')[0]}</span><span class="rt-title" style="color:${medal.color}">${medal.rank} — Partida #${match.match_number || match.id}</span></div>`
+    : `<div class="rt-header"><span class="rt-title">Partida #${match.match_number || match.id}</span></div>`;
   
   html += `<div class="rt-row"><span class="rt-label">Mapa</span><span class="rt-val">${match.map || '—'}</span></div>`;
   

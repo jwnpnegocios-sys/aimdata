@@ -407,7 +407,7 @@ function renderDashboard() {
   
   const baseOpts = () => ({
     responsive:true,
-    plugins:{ legend:{labels:{color:TICK,boxWidth:12,font:{size:11}}}, tooltip:{backgroundColor:"#11141b",borderColor:"#1e2430",borderWidth:1} },
+    plugins:{ legend:{labels:{color:TICK,boxWidth:12,font:{size:11}}}, tooltip:{enabled:false} },
     scales:{ x:{ticks:{color:TICK,font:{size:10}},grid:{color:GRID}}, y:{ticks:{color:TICK,font:{size:10}},grid:{color:GRID}} }
   });
   
