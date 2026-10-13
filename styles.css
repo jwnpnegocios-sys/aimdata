@@ -170,6 +170,13 @@ canvas{display:block;width:100%!important;}
 .log-row{cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
 .log-row.is-demo{cursor:default;}
 
+/* Barra "Desfazer" após excluir partidas */
+#undo-bar{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(12px);z-index:60;display:none;align-items:center;gap:14px;padding:10px 12px 10px 16px;background:#0d1017;border:1px solid var(--border);box-shadow:0 4px 12px rgba(0,0,0,.4);opacity:0;transition:opacity .18s ease,transform .18s ease;max-width:calc(100vw - 32px);}
+#undo-bar.open{display:flex;opacity:1;transform:translateX(-50%) translateY(0);}
+#undo-bar-msg{font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#undo-bar-btn{background:transparent;color:var(--brand);border:1px solid var(--brand);font-family:inherit;font-size:12px;font-weight:600;letter-spacing:.5px;padding:7px 14px;cursor:pointer;text-transform:uppercase;flex-shrink:0;}
+#undo-bar-btn:hover{background:var(--brand);color:#0d1017;}
+
 .row-check{width:auto;padding:0;margin:0 6px 0 0;vertical-align:middle;accent-color:var(--brand);cursor:pointer;}
 .bulk-bar{flex-basis:100%;display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;background:var(--surface);border:1px solid var(--brand);}
 .bulk-count{font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--brand);margin-right:8px;}

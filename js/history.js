@@ -119,6 +119,94 @@ function sortLogTable(col) {
 
 
 
+/* ============================================================
+   DESFAZER EXCLUSÃO
+   Guarda as exclusões recentes (uma partida ou um lote) e mostra
+   uma barra "Desfazer" por UNDO_WINDOW_MS. Ao desfazer, restaura
+   localmente e reenvia para a nuvem (upsert).
+   ============================================================ */
+let deleteUndoStack = [];
+let undoBarTimer = null;
+const UNDO_WINDOW_MS = 10000;
+
+function pushDeleteUndo(profileId, matches) {
+  if (!matches || matches.length === 0) return;
+  deleteUndoStack.push({ profileId, matches: matches.map(m => ({ ...m })) });
+  refreshUndoBar();
+}
+
+function refreshUndoBar() {
+  const bar = document.getElementById("undo-bar");
+  const msg = document.getElementById("undo-bar-msg");
+  if (!bar || !msg) return;
+  clearTimeout(undoBarTimer);
+  if (deleteUndoStack.length === 0) {
+    bar.classList.remove("open");
+    undoBarTimer = null;
+    return;
+  }
+  const total = deleteUndoStack.reduce((n, e) => n + e.matches.length, 0);
+  msg.textContent = total === 1 ? "Partida removida" : `${total} partidas removidas`;
+  bar.classList.add("open");
+  undoBarTimer = setTimeout(() => {
+    deleteUndoStack = [];
+    bar.classList.remove("open");
+    undoBarTimer = null;
+  }, UNDO_WINDOW_MS);
+}
+
+async function undoDelete() {
+  const entry = deleteUndoStack.pop();
+  if (!entry) return;
+
+  const profile = getProfile(entry.profileId);
+  if (profile) {
+    const existingIds = new Set(profile.matches.map(m => m.id));
+    const toRestore = entry.matches.filter(m => !existingIds.has(m.id));
+    if (toRestore.length > 0) {
+      profile.matches.push(...toRestore);
+      normalizeProfileMatches(profile);
+      saveState();
+      renderLog();
+      showToast(toRestore.length === 1 ? "✓ Partida restaurada" : `✓ ${toRestore.length} partidas restauradas`);
+
+      if (toRestore.length === 1) {
+        syncToCloud("upsert_match", { profileId: profile.id, match: toRestore[0] })
+          .then(cloudId => {
+            if (cloudId && toRestore[0].id !== cloudId) {
+              toRestore[0].id = cloudId;
+              saveState();
+            }
+          })
+          .catch(err => console.error("Erro ao restaurar partida na nuvem:", err));
+      } else {
+        syncToCloud("upsert_matches", { profileId: profile.id, matches: profile.matches })
+          .catch(err => console.error("Erro ao restaurar partidas na nuvem:", err));
+      }
+    }
+  }
+
+  refreshUndoBar();
+}
+
+(function setupUndoBar() {
+  function init() {
+    if (document.getElementById("undo-bar")) return;
+    const bar = document.createElement("div");
+    bar.id = "undo-bar";
+    bar.setAttribute("role", "status");
+    bar.setAttribute("aria-live", "polite");
+    bar.innerHTML = '<span id="undo-bar-msg"></span><button id="undo-bar-btn" type="button">Desfazer</button>';
+    document.body.appendChild(bar);
+    document.getElementById("undo-bar-btn").addEventListener("click", undoDelete);
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+
 function deleteMatch(id) {
   const profile = getActiveProfile();
   if (profile.isDemo) {
@@ -126,11 +214,16 @@ function deleteMatch(id) {
     return;
   }
 
+  const removed = profile.matches.find(r => r.id === id);
+  if (!removed) return;
+
   profile.matches = profile.matches.filter(r => r.id !== id);
   normalizeProfileMatches(profile);
   saveState();
   syncToCloud("delete_match", { profileId: activeProfileId, matchId: id });
-  renderLog(); showToast("Partida removida");
+
+  pushDeleteUndo(profile.id, [removed]);
+  renderLog();
 }
 
 function duplicateMatch(id) {
@@ -291,11 +384,13 @@ async function confirmBulkDelete() {
 
     // 2) Local: remove, renumera e salva
     const deleteSet = new Set(idsToDelete);
+    const removedMatches = profile.matches.filter(m => deleteSet.has(m.id));
     profile.matches = profile.matches.filter(m => !deleteSet.has(m.id));
     normalizeProfileMatches(profile);
     selectedMatchIds.clear();
     saveState();
     renderLog();
+    pushDeleteUndo(profile.id, removedMatches);
 
     // 3) Nuvem: envia a renumeração numa única transação
     if (syncEnabled) {
@@ -305,8 +400,6 @@ async function confirmBulkDelete() {
         return;
       }
     }
-
-    showToast(`✓ ${idsToDelete.length} partida(s) removida(s)`);
   } finally {
     bulkActionBusy = false;
   }
