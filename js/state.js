@@ -11,6 +11,13 @@ let activeProfileId = null;
 let editingMatchId = null;
 let charts = {};
 let logSort = { col: 'date', dir: 'desc' };
+const LOG_LIMIT_STEPS = [50, 100, 200, 500];
+let logPageLimit = (function () {
+  const raw = localStorage.getItem("gt_logLimit");
+  if (raw === "all") return null;
+  const n = parseInt(raw, 10);
+  return LOG_LIMIT_STEPS.includes(n) ? n : 100;
+})();
 let mapSort = { col: 'kd', dir: 'desc' };
 let mapTableVisible = localStorage.getItem("gt_mapTableVisible") !== "false";
 let evolutionTab = "kd";

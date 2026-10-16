@@ -83,7 +83,11 @@ function renderLog() {
     });
   }
 
-  document.getElementById("logBody").innerHTML = sortedFiltered.map((r, idx) => {
+  const totalRows = sortedFiltered.length;
+  const limit = (logPageLimit === null || logPageLimit >= totalRows) ? totalRows : logPageLimit;
+  const visibleRows = limit < totalRows ? sortedFiltered.slice(0, limit) : sortedFiltered;
+
+  document.getElementById("logBody").innerHTML = visibleRows.map((r, idx) => {
     const notesIcon = r.notes ? `<span title="${r.notes.replace(/"/g, '&quot;')}" style="cursor:help;color:var(--brand);font-size:14px;">📝</span>` : `<span style="color:var(--muted);font-size:14px;opacity:0.3;">📝</span>`;
     const actionsHtml = profile.isDemo
       ? `<td style="color:var(--muted);font-size:11px;text-align:center;">Somente leitura</td>`
@@ -103,6 +107,24 @@ function renderLog() {
       ${actionsHtml}
     </tr>`;
   }).join("");
+
+  const pager = document.getElementById("logPager");
+  if (pager) {
+    if (totalRows === 0) {
+      pager.innerHTML = "";
+    } else {
+      const options = [...LOG_LIMIT_STEPS, null].map(v =>
+        `<option value="${v === null ? "all" : v}"${logPageLimit === v ? " selected" : ""}>${v === null ? "Todas" : v}</option>`
+      ).join("");
+      pager.innerHTML =
+        `<span class="log-pager-info">Mostrando ${visibleRows.length} de ${totalRows}</span>` +
+        `<div class="log-pager-actions">` +
+          (limit < totalRows ? `<button class="log-pager-btn" onclick="logLoadMore()">Carregar mais</button>` : ``) +
+          `<label class="log-pager-limit">Por página <select onchange="setLogPageLimit(this.value)">${options}</select></label>` +
+        `</div>`;
+    }
+  }
+
   syncLogBarHeight();
   updateBulkBar();
 }
@@ -114,6 +136,26 @@ function sortLogTable(col) {
     logSort.col = col;
     logSort.dir = 'desc';
   }
+  renderLog();
+}
+
+/* ============================================================
+   LIMITE DE PARTIDAS POR VEZ (só a tabela é limitada)
+   KPI, gráficos, recordes e ordenação continuam usando TODAS
+   as partidas — o corte acontece apenas na hora de desenhar.
+   ============================================================ */
+function setLogPageLimit(val) {
+  logPageLimit = (val === "all") ? null : parseInt(val, 10);
+  localStorage.setItem("gt_logLimit", val);
+  renderLog();
+}
+
+function logLoadMore() {
+  const idx = LOG_LIMIT_STEPS.indexOf(logPageLimit);
+  if (idx === -1) return;
+  const next = LOG_LIMIT_STEPS[idx + 1];
+  logPageLimit = (next === undefined) ? null : next;
+  localStorage.setItem("gt_logLimit", logPageLimit === null ? "all" : String(logPageLimit));
   renderLog();
 }
 
@@ -140,17 +182,26 @@ function refreshUndoBar() {
   const msg = document.getElementById("undo-bar-msg");
   if (!bar || !msg) return;
   clearTimeout(undoBarTimer);
+  const progress = document.getElementById("undo-bar-progress");
   if (deleteUndoStack.length === 0) {
     bar.classList.remove("open");
+    if (progress) progress.classList.remove("run");
     undoBarTimer = null;
     return;
   }
   const total = deleteUndoStack.reduce((n, e) => n + e.matches.length, 0);
   msg.textContent = total === 1 ? "Partida removida" : `${total} partidas removidas`;
   bar.classList.add("open");
+  if (progress) {
+    progress.style.animationDuration = UNDO_WINDOW_MS + "ms";
+    progress.classList.remove("run");
+    void progress.offsetWidth; // força reflow para a animação começar do zero
+    progress.classList.add("run");
+  }
   undoBarTimer = setTimeout(() => {
     deleteUndoStack = [];
     bar.classList.remove("open");
+    if (progress) progress.classList.remove("run");
     undoBarTimer = null;
   }, UNDO_WINDOW_MS);
 }
@@ -196,7 +247,7 @@ async function undoDelete() {
     bar.id = "undo-bar";
     bar.setAttribute("role", "status");
     bar.setAttribute("aria-live", "polite");
-    bar.innerHTML = '<span id="undo-bar-msg"></span><button id="undo-bar-btn" type="button">Desfazer</button>';
+    bar.innerHTML = '<span id="undo-bar-msg"></span><button id="undo-bar-btn" type="button">Desfazer</button><div id="undo-bar-progress"></div>';
     document.body.appendChild(bar);
     document.getElementById("undo-bar-btn").addEventListener("click", undoDelete);
   }
@@ -226,7 +277,7 @@ function deleteMatch(id) {
   renderLog();
 }
 
-function duplicateMatch(id) {
+async function duplicateMatch(id) {
   const profile = getActiveProfile();
   if (!profile) return;
   if (profile.isDemo) {
@@ -243,18 +294,24 @@ function duplicateMatch(id) {
   profile.matches.push(copy);
   normalizeProfileMatches(profile);
   saveState();
-
-  syncToCloud("upsert_match", { profileId: activeProfileId, match: copy })
-    .then(cloudId => {
-      if (cloudId) {
-        copy.id = cloudId;
-        saveState();
-      }
-    })
-    .catch(err => console.error("Erro ao sincronizar cópia:", err));
-
   renderLog();
   showToast("✓ Partida duplicada");
+
+  // 1) Cria a cópia na nuvem com um número temporário alto (não colide e
+  //    respeita o NOT NULL); o upsert_matches abaixo grava o número final.
+  const tempNumber = 1000000 + Math.floor(Math.random() * 1000000);
+  const cloudId = await syncToCloud("upsert_match", {
+    profileId: activeProfileId,
+    match: { ...copy, match_number: tempNumber }
+  });
+  if (cloudId) {
+    copy.id = cloudId;
+    saveState();
+    renderLog(); // atualiza a linha com o id definitivo (senão ela fica com o id "m..." antigo)
+  }
+
+  // 2) Reenvia o conjunto completo com a numeração final (uma transação)
+  await syncToCloud("upsert_matches", { profileId: activeProfileId, matches: profile.matches });
 }
 
 function toggleMatchSelection(id, checked) {
@@ -322,6 +379,7 @@ async function bulkDuplicate() {
         if (cloudId) copy.id = cloudId;
       }
       saveState();
+      renderLog(); // atualiza as linhas com os ids definitivos
     }
   } finally {
     bulkActionBusy = false;
@@ -557,6 +615,38 @@ async function confirmBulkDelete() {
       e.stopPropagation();
       longPress = false;
     }, true);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+
+/* ============================================================
+   BOTÃO "VOLTAR AO TOPO" (global — Dashboard e Histórico)
+   Aparece depois de rolar ~300px; some no topo.
+   ============================================================ */
+(function setupScrollTopButton() {
+  function init() {
+    if (document.getElementById("scroll-top-btn")) return;
+    const btn = document.createElement("button");
+    btn.id = "scroll-top-btn";
+    btn.type = "button";
+    btn.title = "Voltar ao topo";
+    btn.setAttribute("aria-label", "Voltar ao topo");
+    btn.textContent = "↑";
+    document.body.appendChild(btn);
+
+    function onScroll() {
+      btn.classList.toggle("show", window.scrollY > 300);
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    btn.addEventListener("click", function () {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    onScroll();
   }
 
   if (document.readyState === "loading") {

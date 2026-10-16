@@ -486,7 +486,10 @@ async function addMatch() {
           await syncToCloud("delete_match", { profileId: profile.id, matchId: originalCloudId });
         }
         if (transferredMatch) {
-          const newCloudId = await syncToCloud("upsert_match", { profileId: transferTarget.id, match: transferredMatch });
+          // Insere com número temporário alto (não colide e respeita o NOT NULL);
+          // o upsert_matches abaixo grava a numeração final do perfil destino.
+          const tempNumber = 1000000 + Math.floor(Math.random() * 1000000);
+          const newCloudId = await syncToCloud("upsert_match", { profileId: transferTarget.id, match: { ...transferredMatch, match_number: tempNumber } });
           if (newCloudId) {
             transferredMatch.id = newCloudId;
             updated.id = newCloudId;
@@ -527,7 +530,13 @@ async function addMatch() {
     
     // Sync para nuvem
     try {
-      await syncToCloud("upsert_match", { profileId: activeProfileId, match: updated });
+      if (dateChanged) {
+        // A data mudou → várias partidas foram renumeradas.
+        // Envia o conjunto inteiro numa única transação (constraint DEFERRABLE).
+        await syncToCloud("upsert_matches", { profileId: activeProfileId, matches: profile.matches });
+      } else {
+        await syncToCloud("upsert_match", { profileId: activeProfileId, match: updated });
+      }
     } catch (e) {
       console.log("Sync erro na edição:", e);
     }

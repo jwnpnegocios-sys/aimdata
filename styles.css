@@ -171,11 +171,31 @@ canvas{display:block;width:100%!important;}
 .log-row.is-demo{cursor:default;}
 
 /* Barra "Desfazer" após excluir partidas */
-#undo-bar{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(12px);z-index:60;display:none;align-items:center;gap:14px;padding:10px 12px 10px 16px;background:#0d1017;border:1px solid var(--border);box-shadow:0 4px 12px rgba(0,0,0,.4);opacity:0;transition:opacity .18s ease,transform .18s ease;max-width:calc(100vw - 32px);}
+#undo-bar{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(12px);z-index:60;display:none;align-items:center;gap:14px;padding:10px 12px 10px 16px;background:#0d1017;border:1px solid var(--border);box-shadow:0 4px 12px rgba(0,0,0,.4);opacity:0;transition:opacity .18s ease,transform .18s ease;max-width:calc(100vw - 32px);overflow:hidden;}
+
+/* Barrinha de progresso do prazo de "Desfazer" */
+#undo-bar-progress{position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--brand);opacity:.85;transform:scaleX(0);transform-origin:left;pointer-events:none;}
+#undo-bar-progress.run{animation-name:undo-countdown;animation-timing-function:linear;animation-fill-mode:forwards;}
+@keyframes undo-countdown{from{transform:scaleX(1);}to{transform:scaleX(0);}}
 #undo-bar.open{display:flex;opacity:1;transform:translateX(-50%) translateY(0);}
 #undo-bar-msg{font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 #undo-bar-btn{background:transparent;color:var(--brand);border:1px solid var(--brand);font-family:inherit;font-size:12px;font-weight:600;letter-spacing:.5px;padding:7px 14px;cursor:pointer;text-transform:uppercase;flex-shrink:0;}
 #undo-bar-btn:hover{background:var(--brand);color:#0d1017;}
+
+/* Botão "Voltar ao topo" */
+#scroll-top-btn{position:fixed;right:20px;bottom:20px;z-index:55;width:42px;height:42px;border-radius:50%;background:#0d1017;color:var(--brand);border:1px solid var(--brand);font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.4);opacity:0;pointer-events:none;transform:translateY(8px);transition:opacity .18s ease,transform .18s ease;}
+#scroll-top-btn.show{opacity:1;pointer-events:auto;transform:translateY(0);}
+#scroll-top-btn:hover{background:var(--brand);color:#0d1017;}
+@media (max-width:600px){#scroll-top-btn{right:14px;bottom:14px;width:38px;height:38px;}}
+
+/* Rodapé de paginação do histórico */
+.log-pager{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;}
+.log-pager-info{font-size:12px;color:var(--sub);}
+.log-pager-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.log-pager-btn{background:transparent;color:var(--brand);border:1px solid var(--brand);font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;padding:6px 14px;cursor:pointer;}
+.log-pager-btn:hover{background:var(--brand);color:#0d1017;}
+.log-pager-limit{display:flex;align-items:center;gap:6px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--sub);font-family:'Rajdhani',sans-serif;}
+.log-pager-limit select{width:auto;min-width:70px;padding:5px 8px;font-size:11px;}
 
 .row-check{width:auto;padding:0;margin:0 6px 0 0;vertical-align:middle;accent-color:var(--brand);cursor:pointer;}
 .bulk-bar{flex-basis:100%;display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;background:var(--surface);border:1px solid var(--brand);}
