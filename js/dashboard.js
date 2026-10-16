@@ -47,9 +47,10 @@ function computeMapAgg(matches, metrics) {
   return mapAgg;
 }
 
+
 function resolveDashboardMetricTab(profile) {
   if (!profile) return null;
-  const perfMetrics = profile.metrics.filter(m => m !== 'games' && m !== 'time');
+  const perfMetrics = getVisibleMetrics(profile, dashHiddenMetrics).filter(m => m !== 'games' && m !== 'time');
   if (!perfMetrics.length) return null;
   if (dashboardMetricTab && perfMetrics.includes(dashboardMetricTab)) {
     return dashboardMetricTab;
@@ -64,7 +65,7 @@ function resolveDashboardMetricTab(profile) {
 function setDashboardMetricTab(tab) {
   const profile = getActiveProfile();
   if (!profile) return;
-  const perfMetrics = profile.metrics.filter(m => m !== 'games' && m !== 'time');
+  const perfMetrics = getVisibleMetrics(profile, dashHiddenMetrics).filter(m => m !== 'games' && m !== 'time');
   if (!perfMetrics.includes(tab)) return;
   dashboardMetricTab = tab;
   mapSort.col = tab;
@@ -158,15 +159,16 @@ function renderDashboard() {
       </div>`;
     return;
   }
-  const metrics = profile.metrics;
+  const metrics = getVisibleMetrics(profile, dashHiddenMetrics);
   dashboardMetricTab = resolveDashboardMetricTab(profile);
   if (!dashboardMetricTab) {
     inner.innerHTML = `
       <div class="onboarding" style="padding:48px 20px;">
         <div class="onboarding-hero" style="margin-bottom:0;">
           <div class="e-icon" style="font-size:36px;margin-bottom:12px;">📊</div>
-          <h1 style="font-size:22px;margin-bottom:12px;">Nenhuma métrica de performance ativa</h1>
-          <p style="max-width:480px;margin:0 auto 20px;">Ative pelo menos uma métrica de performance (K/D, KPM, KPD, etc.) no popover de métricas no topo do dashboard para visualizar as estatísticas.</p>
+          <h1 style="font-size:22px;margin-bottom:12px;">Nenhuma métrica de performance visível</h1>
+          <p style="max-width:480px;margin:0 auto 20px;">Mostre pelo menos uma métrica de performance (K/D, KPM, KPD, etc.) para visualizar as estatísticas.</p>
+          <button class="onboarding-cta" onclick="showAllMetrics('dash')">Mostrar todas as métricas</button>
         </div>
       </div>`;
     return;
@@ -222,7 +224,7 @@ function renderDashboard() {
     </div>`;
   }
   
-  const isFiltered = dashboardRecords !== 30 || dashboardSince || dashboardMapFilter;
+  const isFiltered = dashboardRecords !== 30 || dashboardSince || dashboardMapFilter || dashHiddenMetrics.size > 0;
   const recorteLabel = dashboardSince
     ? `Desde ${dashboardSince.split('-').reverse().join('/')}`
     : (dashboardRecords === null ? 'Todas as partidas' : `Últimas ${dashboardRecords} partidas`);
@@ -239,9 +241,9 @@ function renderDashboard() {
       <span class="${dashboardMapFilter ? 'filter-pill-val' : ''}">${mapLabel}</span>
     </div>
     <span style="color:var(--muted);font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;">|</span>
-    <div class="filter-pill" onclick="openMetricsPopover(this)">
+    <div class="filter-pill" onclick="openMetricsPopover(this, 'dash')">
       <span style="color:var(--sub);font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;">Métricas</span>
-      <span class="filter-pill-val">${profile.metrics.length} ativas</span>
+      <span class="filter-pill-val">${metrics.length === profile.metrics.length ? `${profile.metrics.length} ativas` : `${metrics.length} de ${profile.metrics.length} visíveis`}</span>
     </div>
     ${isFiltered ? `<button class="filter-pill-reset" onclick="resetDashboardFilters()" title="Limpar filtros">↺</button>` : ''}
     <span style="color:var(--muted);font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;">|</span>
@@ -251,14 +253,15 @@ function renderDashboard() {
         <strong style="color:var(--brand);font-family:'Rajdhani',sans-serif;">Filtro Global do Dashboard</strong><br><br>
         <strong>📊 Recorte:</strong> clique para escolher entre 10, 30, 90 ou Todas as partidas, ou definir um período por data. Partidas e período são mutuamente exclusivos.<br><br>
         <strong>🗺 Mapa:</strong> clique para selecionar um mapa específico ou voltar a "Todos os mapas".<br><br>
-        <strong>↺ Reset:</strong> aparece automaticamente quando qualquer filtro está ativo. Restaura o padrão (Últimas 30 · Todos os mapas).<br><br>
+        <strong>Métricas:</strong> mostra ou oculta métricas <em>nesta aba</em>. É independente do Histórico e não altera o que o perfil rastreia (para mudar o rastreamento, edite o perfil em ⚙ Perfis).<br><br>
+        <strong>↺ Reset:</strong> aparece automaticamente quando qualquer filtro está ativo. Restaura o padrão (Últimas 30 · Todos os mapas) e reexibe todas as métricas.<br><br>
         <em>O Quadro de Desempenho e o Gráfico de Evolução respeitam todos os filtros ativos. O card Performance por Mapa respeita o recorte, mas ignora o filtro de mapa para manter o contexto comparativo.</em>
       </div>
     </div>
   </div>`;
 
   html += `<div id="dash-metric-tabs">
-    ${profile.metrics.filter(m => m !== 'games' && m !== 'time').map(mid => {
+    ${metrics.filter(m => m !== 'games' && m !== 'time').map(mid => {
       const meta = METRIC_MAP[mid];
       if (!meta) return '';
       const isActive = dashboardMetricTab === mid;
@@ -311,7 +314,7 @@ function renderDashboard() {
   if (!availableMids.includes(activeMid)) {
     html += `<div style="padding:24px;color:var(--muted);text-align:center;font-size:13px;">Nenhum dado calculado para ${METRIC_MAP[activeMid]?.label || activeMid} no período selecionado.</div>`;
   } else {
-    const perfMetrics = profile.metrics.filter(m => m !== 'games' && m !== 'time');
+    const perfMetrics = metrics.filter(m => m !== 'games' && m !== 'time');
     const sideCandidates = PRIORITY_ORDER.filter(m => perfMetrics.includes(m) && m !== activeMid && availableMids.includes(m));
     const leftMid = sideCandidates[0] || null;
     const rightMid = sideCandidates[1] || null;
@@ -389,9 +392,9 @@ function renderDashboard() {
   
   const allMapsInPeriod = [...new Set(getMapPerformanceMatches(profile).map(r => r.map))];
   if (allMapsInPeriod.length > 1 && metrics.includes("kills")) {
-    html += buildMapPerformanceCardHtml('brand', 280, dashboardMapFilter || null, profile.metrics);
+    html += buildMapPerformanceCardHtml('brand', 280, dashboardMapFilter || null, metrics);
   } else if (allMapsInPeriod.length > 1) {
-    html += buildMapPerformanceCardHtml('brand', 200, dashboardMapFilter || null, profile.metrics);
+    html += buildMapPerformanceCardHtml('brand', 200, dashboardMapFilter || null, metrics);
   }
   
   html += '</div>';
@@ -496,7 +499,7 @@ function renderDashboard() {
   
   const mapCtx = document.getElementById("ch-mapbars");
   if (mapCtx) {
-    const mapAgg = computeMapAgg(getMapPerformanceMatches(profile), profile.metrics);
+    const mapAgg = computeMapAgg(getMapPerformanceMatches(profile), metrics);
     const sortCol = mapSort.col;
     const mapArr = Object.entries(mapAgg).map(([map, s]) => ({ map, ...s }));
     mapArr.sort((a, b) => {
@@ -613,7 +616,7 @@ function renderDashboard() {
                 const partidasLabel = 'Partidas';
                 const primaryLabel = currentSortCol === 'games' ? partidasLabel : (METRIC_MAP[currentSortCol]?.label || currentSortCol.toUpperCase());
                 const lines = [`${primaryLabel}: ${m[currentSortCol]}`];
-                profile.metrics.forEach(mid => {
+                metrics.forEach(mid => {
                   if (mid === currentSortCol) return;
                   if (m[mid] !== undefined && m[mid] !== null) {
                     lines.push(`${METRIC_MAP[mid]?.label || mid}: ${mid === 'time' ? formatDuration(m[mid]) : m[mid]}`);
@@ -645,7 +648,7 @@ function renderDashboard() {
     charts["mapbars"]._mapArr = mapArr; charts["mapbars"]._sortCol = sortCol;
     
     const mapTableHead = document.getElementById("mapTableHead");
-    if (mapTableHead) mapTableHead.innerHTML = buildMapTableHeadHtml(mapArr, profile.metrics);
+    if (mapTableHead) mapTableHead.innerHTML = buildMapTableHeadHtml(mapArr, metrics);
   }
 }
 
@@ -747,11 +750,12 @@ function refreshMapChart() {
   if (!chart) return;
   const profile = getActiveProfile();
   if (!profile) return;
-  if (mapSort.col !== 'games' && !profile.metrics.includes(mapSort.col)) {
-    mapSort.col = dashboardMetricTab || profile.metrics[0] || 'games';
+  const visibleMetrics = getVisibleMetrics(profile, dashHiddenMetrics);
+  if (mapSort.col !== 'games' && !visibleMetrics.includes(mapSort.col)) {
+    mapSort.col = dashboardMetricTab || visibleMetrics[0] || 'games';
     mapSort.dir = (mapSort.col === 'kpd' || mapSort.col === 'position') ? 'asc' : 'desc';
   }
-  const mapAgg = computeMapAgg(getMapPerformanceMatches(profile), profile.metrics);
+  const mapAgg = computeMapAgg(getMapPerformanceMatches(profile), visibleMetrics);
   const sortCol = mapSort.col;
   const mapArr = Object.entries(mapAgg).map(([map, s]) => ({ map, games: s.games, kd: s.kd, kpm: s.kpm, kpd: s.kpd }));
   mapArr.sort((a, b) => { const valA = a[sortCol]; const valB = b[sortCol]; return mapSort.dir === 'desc' ? valB - valA : valA - valB; });
@@ -777,7 +781,7 @@ function refreshMapChart() {
   chart.update();
   refreshMapAmplitude();
   const mapTableHead = document.getElementById("mapTableHead");
-  if (mapTableHead) mapTableHead.innerHTML = buildMapTableHeadHtml(mapArr, profile.metrics);
+  if (mapTableHead) mapTableHead.innerHTML = buildMapTableHeadHtml(mapArr, visibleMetrics);
 }
 
 function sortMapTable(col) {
@@ -850,7 +854,8 @@ function toggleRecordDots() {
   }
 }
 
-function openMetricsPopover(anchorEl) {
+function openMetricsPopover(anchorEl, context) {
+  context = (context === 'log') ? 'log' : 'dash';
   closeFilterPopover();
   let popover = document.getElementById('filter-popover');
   if (!popover) {
@@ -859,16 +864,24 @@ function openMetricsPopover(anchorEl) {
     document.body.appendChild(popover);
   }
   const profile = getActiveProfile();
+  const hidden = context === 'log' ? logHiddenMetrics : dashHiddenMetrics;
   let html = `<div class="filter-popover-title">Métricas Visíveis</div>`;
-  ALL_METRICS.forEach(m => {
-    const isChecked = profile.metrics.includes(m.id);
-    html += `<label class="filter-popover-opt metric-popover-row" style="cursor:pointer;">
-      <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleMetricVisibility('${m.id}', this.checked)" style="accent-color:var(--brand);cursor:pointer;">
-      <span>${m.label}${m.type === 'calc' ? ' (calculada)' : ''}</span>
-    </label>`;
-  });
+  if (!profile || !profile.metrics.length) {
+    html += `<div style="padding:8px 4px;color:var(--muted);font-size:12px;">Nenhuma métrica rastreada neste perfil.</div>`;
+  } else {
+    profile.metrics.forEach(mid => {
+      const meta = METRIC_MAP[mid];
+      const isChecked = !hidden.has(mid);
+      html += `<label class="filter-popover-opt metric-popover-row" style="cursor:pointer;">
+        <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleMetricVisibility('${mid}', this.checked, '${context}')" style="accent-color:var(--brand);cursor:pointer;">
+        <span>${meta?.label || mid}${meta?.type === 'calc' ? ' (calculada)' : ''}</span>
+      </label>`;
+    });
+    html += `<div style="padding:6px 4px 0;color:var(--muted);font-size:11px;line-height:1.4;">Para adicionar ou remover métricas do perfil, edite-o em ⚙ Perfis.</div>`;
+  }
   html += `<div class="filter-popover-actions">
-    <button class="filter-popover-btn" onclick="closeFilterPopover()">Fechar</button>
+    <button class="filter-popover-btn" onclick="showAllMetrics('${context}')">Mostrar todas</button>
+    <button class="filter-popover-btn secondary" onclick="closeFilterPopover()">Fechar</button>
   </div>`;
   popover.innerHTML = html;
   popover.classList.add('open');
@@ -881,26 +894,24 @@ function openMetricsPopover(anchorEl) {
   }, 0);
 }
 
-function toggleMetricVisibility(metricId, visible) {
-  const profile = getActiveProfile();
-  if (!profile) return;
-  if (visible) {
-    if (!profile.metrics.includes(metricId)) {
-      profile.metrics.push(metricId);
-    }
-  } else {
-    profile.metrics = profile.metrics.filter(m => m !== metricId);
-  }
-  saveState();
-  if (!visible && metricId === dashboardMetricTab) {
-    dashboardMetricTab = resolveDashboardMetricTab(profile);
-    if (dashboardMetricTab) {
-      mapSort.col = dashboardMetricTab;
-      mapSort.dir = (dashboardMetricTab === 'kpd' || dashboardMetricTab === 'position') ? 'asc' : 'desc';
-      evolutionTab = dashboardMetricTab;
-    }
-  }
-  renderDashboard();
-  renderLog();
-  showToast(visible ? `✓ ${METRIC_MAP[metricId]?.label || metricId} ativada` : `✗ ${METRIC_MAP[metricId]?.label || metricId} oculta`);
+function toggleMetricVisibility(metricId, visible, context) {
+  context = (context === 'log') ? 'log' : 'dash';
+  const hidden = context === 'log' ? logHiddenMetrics : dashHiddenMetrics;
+  if (visible) hidden.delete(metricId);
+  else hidden.add(metricId);
+  saveHiddenMetrics();
+  if (context === 'log') renderLog();
+  else renderDashboard();
+  showToast(visible ? `✓ ${METRIC_MAP[metricId]?.label || metricId} visível` : `✗ ${METRIC_MAP[metricId]?.label || metricId} oculta`);
+}
+
+function showAllMetrics(context) {
+  context = (context === 'log') ? 'log' : 'dash';
+  const hidden = context === 'log' ? logHiddenMetrics : dashHiddenMetrics;
+  hidden.clear();
+  saveHiddenMetrics();
+  closeFilterPopover();
+  if (context === 'log') renderLog();
+  else renderDashboard();
+  showToast("✓ Todas as métricas visíveis");
 }

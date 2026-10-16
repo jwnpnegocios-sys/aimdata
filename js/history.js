@@ -21,7 +21,7 @@ function renderLog() {
     document.getElementById("logBody").innerHTML = `<tr><td colspan="99" style="text-align:center;padding:32px 20px;color:var(--sub);"><div class="e-icon" style="font-size:36px;margin-bottom:12px;">📋</div><div class="e-title" style="font-family:'Rajdhani',sans-serif;font-size:18px;color:var(--text);margin-bottom:6px;">Nenhum perfil ativo</div><div class="e-sub" style="font-size:13px;">Crie um perfil para visualizar o histórico de partidas</div></td></tr>`;
     return;
   }
-  const metrics = profile.metrics;
+  const metrics = getVisibleMetrics(profile, logHiddenMetrics);
   const inputMetrics = metrics.filter(m => METRIC_MAP[m]?.type === "input");
   const calcMetrics = metrics.filter(m => METRIC_MAP[m]?.type === "calc");
   const filter = dashboardMapFilter;
@@ -42,12 +42,15 @@ function renderLog() {
 
   const metricsLabel = document.getElementById('logMetricsLabel');
   if (metricsLabel) {
-    metricsLabel.textContent = `${profile.metrics.length} ativas`;
+    const tracked = profile.metrics.length;
+    metricsLabel.textContent = metrics.length === tracked
+      ? `${tracked} ativas`
+      : `${metrics.length} de ${tracked} visíveis`;
   }
 
   const resetBtn = document.getElementById('logResetBtn');
   if (resetBtn) {
-    resetBtn.style.display = dashboardMapFilter ? '' : 'none';
+    resetBtn.style.display = (dashboardMapFilter || logHiddenMetrics.size > 0) ? '' : 'none';
   }
 
   function sortIcon(c) { if (logSort.col !== c) return ''; return logSort.dir === 'desc' ? ' ▼' : ' ▲'; }
@@ -128,6 +131,7 @@ function renderLog() {
   syncLogBarHeight();
   updateBulkBar();
 }
+
 
 function sortLogTable(col) {
   if (logSort.col === col) {
@@ -340,6 +344,16 @@ function bulkSelectAll() {
 
 function bulkClear() {
   selectedMatchIds.clear();
+  renderLog();
+}
+
+/* Reset só do Histórico: limpa o mapa (compartilhado) e reexibe as métricas desta aba. */
+function resetLogFilters() {
+  dashboardMapFilter = "";
+  logHiddenMetrics.clear();
+  saveHiddenMetrics();
+  showToast("↺ Filtros do histórico resetados");
+  renderDashboard();
   renderLog();
 }
 

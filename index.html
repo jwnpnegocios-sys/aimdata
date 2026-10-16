@@ -77,18 +77,18 @@
             <span id="logMapFilterLabel">Todos os mapas</span>
           </div>
           <span style="color:var(--muted);font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;">|</span>
-          <div class="filter-pill" id="logMetricsPill" onclick="openMetricsPopover(this)">
+          <div class="filter-pill" id="logMetricsPill" onclick="openMetricsPopover(this, 'log')">
             <span style="color:var(--sub);font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;">Métricas</span>
             <span id="logMetricsLabel" class="filter-pill-val">0 ativas</span>
           </div>
           <span style="color:var(--muted);font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;">|</span>
-          <button class="filter-pill-reset" id="logResetBtn" onclick="resetDashboardFilters()" title="Limpar filtros" style="display:none;">↺</button>
+          <button class="filter-pill-reset" id="logResetBtn" onclick="resetLogFilters()" title="Limpar filtros" style="display:none;">↺</button>
           <div class="map-help" style="margin-bottom:2px;">
             <span>?</span>
             <div class="map-help-tooltip" style="right:0;left:auto;width:320px;">
               <strong style="color:var(--brand);font-family:'Rajdhani',sans-serif;">Histórico de Partidas</strong><br><br>
-              <strong>Filtro por Mapa</strong> — o filtro de mapa é compartilhado com o Dashboard. Clique no pill para selecionar um mapa específico. "Todos os mapas" remove o filtro.<br><br>
-              <strong>Métricas</strong> — clique no pill para mostrar ou ocultar métricas. As colunas da tabela se adaptam automaticamente.<br><br>
+              <strong>Filtro por Mapa</strong> — compartilhado com o Dashboard (é escopo de análise). Clique no pill para selecionar um mapa. "Todos os mapas" remove o filtro.<br><br>
+              <strong>Métricas</strong> — as métricas exibidas aqui são <em>independentes</em> do Dashboard. Ocultar só afeta esta tabela e não altera o que o perfil rastreia. Para adicionar/remover métricas do perfil, edite-o em ⚙ Perfis.<br><br>
               <strong>Ordenação</strong> — clique nos cabeçalhos de coluna para ordenar. Clique novamente para inverter (crescente ↔ decrescente).<br><br>
               <strong>Edição Inline</strong> — clique em ✎ para editar data, hora, mapa, métricas e anotações diretamente na tabela. Os valores calculados se atualizam automaticamente.<br><br>
               <strong>Duplicar</strong> — ⧉ cria uma cópia da partida com data/hora atual e novo número. Útil para partidas seguidas com resultados parecidos.<br><br>

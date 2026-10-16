@@ -27,6 +27,29 @@ let dashboardMetricTab = null;
 let selectedMatchIds = new Set();
 let bulkActionBusy = false;
 
+/* === VISIBILIDADE DE MÉTRICAS POR ABA ===
+   Isto NÃO muda o que o perfil rastreia (profile.metrics).
+   É só o que cada aba decide exibir. */
+function loadHiddenSet(key) {
+  try {
+    const raw = JSON.parse(localStorage.getItem(key) || "[]");
+    return new Set(Array.isArray(raw) ? raw : []);
+  } catch (e) {
+    return new Set();
+  }
+}
+let logHiddenMetrics = loadHiddenSet("gt_logHiddenMetrics");
+let dashHiddenMetrics = loadHiddenSet("gt_dashHiddenMetrics");
+function saveHiddenMetrics() {
+  localStorage.setItem("gt_logHiddenMetrics", JSON.stringify([...logHiddenMetrics]));
+  localStorage.setItem("gt_dashHiddenMetrics", JSON.stringify([...dashHiddenMetrics]));
+}
+function getVisibleMetrics(profile, hiddenSet) {
+  if (!profile || !Array.isArray(profile.metrics)) return [];
+  return profile.metrics.filter(m => !hiddenSet.has(m));
+}
+
+
 /* === FILTRO GLOBAL DO DASHBOARD === */
 const DASH_PRESETS = [10, 30, 90, null]; // null = Total
 let dashboardRecords = 30;
@@ -170,7 +193,9 @@ function resetDashboardFilters() {
   dashboardRecords = 30;
   dashboardSince = null;
   dashboardMapFilter = "";
-  showToast(`↺ Filtros resetados`);
+  dashHiddenMetrics.clear();
+  saveHiddenMetrics();
+  showToast(`↺ Filtros do dashboard resetados`);
   renderDashboard();
   renderLog();
 }
