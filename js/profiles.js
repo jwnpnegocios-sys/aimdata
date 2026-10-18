@@ -37,7 +37,52 @@ function openModal(mode, profileId) {
   document.getElementById("modal-actions").innerHTML=`<button class="modal-cancel" onclick="closeModal()">Cancelar</button><button class="modal-save" onclick="saveModal()">Salvar</button>`;
   document.getElementById("modal-overlay").classList.add("open");
 }
-function renderModalTags() { document.getElementById("modalTagList").innerHTML=modalMaps.map((m,i)=>`<div class="tag"><span class="tag-name" onclick="renameModalMap(${i})" title="Clique para renomear" style="cursor:pointer;">${m}</span><button class="tag-remove" onclick="removeModalMap(${i})">×</button></div>`).join(""); }
+function renderModalTags() { document.getElementById("modalTagList").innerHTML=modalMaps.map((m,i)=>`<div class="tag"><span class="tag-name">${m}</span><button type="button" class="tag-menu-btn" onclick="openMapMenu(event, ${i})" title="Opções do mapa">⋮</button></div>`).join(""); }
+
+let mapMenuIndex = -1;
+
+function openMapMenu(ev, i) {
+  ev.stopPropagation();
+  const menu = document.getElementById("map-menu") || (function () {
+    const el = document.createElement("div");
+    el.id = "map-menu";
+    el.innerHTML = `<button type="button" class="map-menu-item" onclick="mapMenuRename()">✎ <span>Renomear</span></button><button type="button" class="map-menu-item danger" onclick="mapMenuDelete()">🗑 <span>Excluir</span></button>`;
+    document.body.appendChild(el);
+    return el;
+  })();
+  document.querySelectorAll("#map-menu.open").forEach(el => el.classList.remove("open"));
+  mapMenuIndex = i;
+  menu.classList.add("open");
+  const rect = (ev.currentTarget || ev.target).getBoundingClientRect();
+  const w = menu.offsetWidth || 150;
+  menu.style.top = (rect.bottom + 4) + "px";
+  menu.style.left = Math.max(8, rect.right - w) + "px";
+  setTimeout(() => {
+    document.addEventListener("click", closeMapMenuOutside, { once: true });
+  }, 0);
+}
+
+function closeMapMenu() {
+  const menu = document.getElementById("map-menu");
+  if (menu) menu.classList.remove("open");
+}
+
+function closeMapMenuOutside(e) {
+  const menu = document.getElementById("map-menu");
+  if (menu && menu.classList.contains("open") && !menu.contains(e.target)) menu.classList.remove("open");
+}
+
+function mapMenuRename() {
+  const i = mapMenuIndex;
+  closeMapMenu();
+  if (i >= 0) renameModalMap(i);
+}
+
+function mapMenuDelete() {
+  const i = mapMenuIndex;
+  closeMapMenu();
+  if (i >= 0) confirmRemoveModalMap(i);
+}
 let renameModalState = null;
 function renameModalMap(i) {
   const oldName = modalMaps[i];
@@ -75,6 +120,31 @@ function confirmRenameMap() {
       if (affected > 0) syncToCloud("upsert_matches", { profileId: p.id, matches: p.matches });
     }
   }
+  if (p) {
+    const profileId = p.id;
+    const fromName = oldName;
+    const toName = newName;
+    const affectedCount = affected;
+    pushUndo({
+      label: "Mapa renomeado",
+      restore: async function () {
+        const prof = getProfile(profileId);
+        if (!prof) return;
+        const mi = prof.maps.findIndex(m => mapEquals(m, toName));
+        if (mi !== -1) prof.maps[mi] = fromName;
+        if (affectedCount > 0) prof.matches.forEach(m => { if (mapEquals(m.map, toName)) m.map = fromName; });
+        saveState();
+        if (currentUser && supabaseClient) {
+          syncProfileToCloud(prof);
+          if (affectedCount > 0) syncToCloud("upsert_matches", { profileId: prof.id, matches: prof.matches });
+        }
+        renderLog();
+        renderDashboard();
+        if (document.getElementById("modal-overlay").classList.contains("open")) openModal(modalMode, modalProfileId);
+        showToast("✓ Renomeação desfeita");
+      }
+    });
+  }
   modalMaps[index] = newName;
   const idx = index;
   renameModalState = null;
@@ -83,26 +153,65 @@ function confirmRenameMap() {
   showToast("✓ Mapa renomeado");
 }function addModalMap() { const inp=document.getElementById("m-map-input"); const val=inp.value.trim(); if(!val)return; if(modalMaps.includes(val)){showToast("Mapa já existe");return;} modalMaps.push(val); renderModalTags(); inp.value=""; }
 
-function removeModalMap(i) {
+function confirmRemoveModalMap(i) {
   const mapName = modalMaps[i];
-  if (typeof mapName !== 'string') { modalMaps.splice(i,1); renderModalTags(); return; }
+  if (typeof mapName !== "string") { modalMaps.splice(i,1); renderModalTags(); return; }
   const p = (modalMode === "edit" && modalProfileId) ? getProfile(modalProfileId) : null;
-  if (p && Array.isArray(p.matches)) {
-    const orphans = p.matches.filter(m => mapInList(m.map, [mapName])).length;
-    if (orphans > 0) {
-      const ok = confirm(
-        `O mapa "${mapName}" tem ${orphans} partida(s) registrada(s).\n\n` +
-        `Se você remover este mapa do perfil, as partidas NÃO serão apagadas, mas:\n` +
-        `• o mapa deixa de aparecer no filtro do Histórico;\n` +
-        `• deixa de sair no agrupamento por mapa (gráfico e tabela);\n` +
-        `• a partida continua visível na lista normalmente.\n\n` +
-        `Remover o mapa mesmo assim?`
-      );
-      if (!ok) return;
-    }
+  const affected = (p && Array.isArray(p.matches)) ? p.matches.filter(m => mapInList(m.map, [mapName])).length : 0;
+  document.getElementById("modal-title").textContent = "Excluir mapa";
+  document.getElementById("modal-body").innerHTML = `
+    <p style="font-size:13px;color:var(--sub);line-height:1.7;margin-bottom:12px;">
+      Excluir o mapa <strong style="color:var(--text);">"${mapName}"</strong> do perfil?
+    </p>
+    ${affected > 0 ? `<p style="font-size:12px;color:var(--muted);line-height:1.6;">Este mapa tem <strong style="color:var(--text);">${affected} partida(s)</strong>. As partidas NÃO serão apagadas, mas o mapa deixa de aparecer no filtro e no agrupamento por mapa.</p>` : `<p style="font-size:12px;color:var(--muted);line-height:1.6;">Nenhuma partida usa este mapa.</p>`}
+  `;
+  document.getElementById("modal-actions").innerHTML = `
+    <button class="modal-cancel" onclick="cancelRemoveModalMap()">Cancelar</button>
+    <button class="modal-delete" style="margin-right:0;" onclick="doRemoveModalMap(${i})">Excluir</button>
+  `;
+  document.getElementById("modal-overlay").classList.add("open");
+}
+
+function cancelRemoveModalMap() {
+  closeModal();
+  openModal(modalMode, modalProfileId);
+}
+
+function doRemoveModalMap(i) {
+  const mapName = modalMaps[i];
+  const p = (modalMode === "edit" && modalProfileId) ? getProfile(modalProfileId) : null;
+  const draftIdx = modalMaps.findIndex(m => mapEquals(m, mapName));
+  if (draftIdx !== -1) modalMaps.splice(draftIdx, 1);
+
+  if (p) {
+    p.maps = p.maps.filter(m => !mapEquals(m, mapName));
+    saveState();
+    if (currentUser && supabaseClient) syncProfileToCloud(p);
+
+    const profileId = p.id;
+    const restoreName = mapName;
+    pushUndo({
+      label: "Mapa excluído",
+      restore: async function () {
+        const prof = getProfile(profileId);
+        if (!prof) return;
+        if (!prof.maps.some(m => mapEquals(m, restoreName))) {
+          prof.maps.push(restoreName);
+          prof.maps.sort((a, b) => a.localeCompare(b, "pt-BR"));
+        }
+        saveState();
+        if (currentUser && supabaseClient) syncProfileToCloud(prof);
+        renderLog();
+        renderDashboard();
+        if (document.getElementById("modal-overlay").classList.contains("open")) openModal(modalMode, modalProfileId);
+        showToast("✓ Mapa restaurado");
+      }
+    });
   }
-  modalMaps.splice(i,1);
-  renderModalTags();
+
+  closeModal();
+  openModal(modalMode, modalProfileId);
+  showToast("✓ Mapa excluído");
 }
 function saveModal() {
   const game=document.getElementById("m-game").value.trim();

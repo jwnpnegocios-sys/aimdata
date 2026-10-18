@@ -99,6 +99,12 @@
           </div>
         </div>
 
+        <div class="log-search">
+          <span class="log-search-icon">🔍</span>
+          <input type="text" id="logSearchInput" placeholder="Buscar mapa, kills, notas…" autocomplete="off" oninput="onLogSearchInput()">
+          <button type="button" class="log-search-clear" id="logSearchClear" onclick="clearLogSearch()" title="Limpar busca" style="display:none;">×</button>
+        </div>
+
         <div class="log-count" id="logCount"></div>
         <div class="bulk-bar" id="bulkBar">
           <span class="bulk-count" id="bulkCount">0 selecionadas</span>

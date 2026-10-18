@@ -18,6 +18,7 @@ let logPageLimit = (function () {
   const n = parseInt(raw, 10);
   return LOG_LIMIT_STEPS.includes(n) ? n : 100;
 })();
+let logSearch = "";
 let mapSort = { col: 'kd', dir: 'desc' };
 let mapTableVisible = localStorage.getItem("gt_mapTableVisible") !== "false";
 let evolutionTab = "kd";

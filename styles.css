@@ -149,6 +149,20 @@ canvas{display:block;width:100%!important;}
 }
 .log-bar label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--sub);display:block;margin-bottom:5px;}
 .log-bar select{width:180px;}
+
+/* Marca-texto da busca no Histórico */
+mark.log-hl{background:var(--brand);color:#0d1017;padding:0 1px;border-radius:2px;}
+span.log-hl{background:var(--brand);border-radius:2px;padding:0 1px;}
+
+/* Busca no Histórico */
+.log-search{display:flex;align-items:center;gap:6px;background:#0d1017;border:1px solid var(--border);padding:0 9px;height:34px;flex:1 1 200px;max-width:340px;align-self:center;transition:border .15s;}
+.log-search:focus-within{border-color:var(--brand);}
+.log-search-icon{font-size:12px;opacity:.55;flex-shrink:0;}
+.log-search input{flex:1;min-width:0;width:auto;background:transparent;border:none;padding:0;font-size:13px;height:auto;}
+.log-search input:focus{border:none;}
+.log-search input::placeholder{color:var(--muted);}
+.log-search-clear{background:transparent;border:none;color:var(--sub);font-size:16px;font-weight:400;letter-spacing:0;text-transform:none;line-height:1;cursor:pointer;padding:0 2px;flex-shrink:0;}
+.log-search-clear:hover{color:var(--action);filter:none;}
 .log-count{margin-left:auto;font-size:12px;color:var(--sub);align-self:center;}
 .log-scroll{overflow:visible;}
 @media (max-width:900px){
@@ -171,7 +185,7 @@ canvas{display:block;width:100%!important;}
 .log-row.is-demo{cursor:default;}
 
 /* Barra "Desfazer" após excluir partidas */
-#undo-bar{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(12px);z-index:60;display:none;align-items:center;gap:14px;padding:10px 12px 10px 16px;background:#0d1017;border:1px solid var(--border);box-shadow:0 4px 12px rgba(0,0,0,.4);opacity:0;transition:opacity .18s ease,transform .18s ease;max-width:calc(100vw - 32px);overflow:hidden;}
+#undo-bar{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(12px);z-index:300;display:none;align-items:center;gap:14px;padding:10px 12px 10px 16px;background:#0d1017;border:1px solid var(--border);box-shadow:0 4px 12px rgba(0,0,0,.4);opacity:0;transition:opacity .18s ease,transform .18s ease;max-width:calc(100vw - 32px);overflow:hidden;}
 
 /* Barrinha de progresso do prazo de "Desfazer" */
 #undo-bar-progress{position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--brand);opacity:.85;transform:scaleX(0);transform-origin:left;pointer-events:none;}
@@ -271,6 +285,16 @@ canvas{display:block;width:100%!important;}
   font-family:'Rajdhani',sans-serif;font-size:13px;display:flex;align-items:center;gap:6px;}
 .tag-remove{background:none;border:none;color:var(--action);font-size:14px;padding:0;
   line-height:1;letter-spacing:0;font-family:sans-serif;}
+.tag-menu-btn{background:none;border:none;color:var(--sub);font-size:15px;padding:0 2px;
+  line-height:1;letter-spacing:0;font-family:sans-serif;cursor:pointer;}
+.tag-menu-btn:hover{color:var(--brand);filter:none;}
+
+/* Menu ⋮ dos mapas (Renomear / Excluir) */
+#map-menu{position:fixed;z-index:200;display:none;min-width:150px;background:#0d1017;border:1px solid var(--border);box-shadow:0 6px 18px rgba(0,0,0,.5);padding:4px;}
+#map-menu.open{display:block;}
+.map-menu-item{display:flex;align-items:center;gap:8px;width:100%;background:transparent;border:none;color:var(--text);font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:600;letter-spacing:.5px;text-transform:none;padding:8px 10px;text-align:left;cursor:pointer;}
+.map-menu-item:hover{background:var(--surface);filter:none;}
+.map-menu-item.danger{color:var(--action);}
 .add-tag-row{display:flex;gap:8px;}
 .add-tag-row input{flex:1;}
 .add-tag-btn{background:var(--brand);color:#000;padding:9px 16px;font-size:12px;flex-shrink:0;}

@@ -28,7 +28,10 @@ function renderLog() {
   const filtered = filter ? profile.matches.filter(r => r.map === filter) : profile.matches;
   const visibleIds = new Set(filtered.map(r => r.id));
   [...selectedMatchIds].forEach(id => { if (!visibleIds.has(id)) selectedMatchIds.delete(id); });
-  document.getElementById("logCount").textContent = `${filtered.length} partidas`;
+
+  const searchQuery = (typeof logSearch === "string" ? logSearch : "").trim();
+  const searched = searchQuery ? filtered.filter(r => logMatchMatchesQuery(r, logNorm(searchQuery), metrics)) : filtered;
+  document.getElementById("logCount").textContent = `${searched.length} partidas`;
 
   const mapFilterLabel = document.getElementById('logMapFilterLabel');
   if (mapFilterLabel) {
@@ -50,7 +53,7 @@ function renderLog() {
 
   const resetBtn = document.getElementById('logResetBtn');
   if (resetBtn) {
-    resetBtn.style.display = (dashboardMapFilter || logHiddenMetrics.size > 0) ? '' : 'none';
+    resetBtn.style.display = (dashboardMapFilter || logHiddenMetrics.size > 0 || logSearch) ? '' : 'none';
   }
 
   function sortIcon(c) { if (logSort.col !== c) return ''; return logSort.dir === 'desc' ? ' ▼' : ' ▲'; }
@@ -60,7 +63,7 @@ function renderLog() {
 
   document.getElementById("logHead").innerHTML = `<th>#</th><th ${sortClick('date')} style="${sortStyle('date')}${sortCursor('date')}white-space:nowrap;">Hora / Data${sortIcon('date')}</th>` + ["map",...inputMetrics,...calcMetrics].map(c => `<th ${sortClick(c)} style="${sortStyle(c)}${sortCursor(c)}white-space:nowrap;">${c==="map"?"Mapa":METRIC_MAP[c]?.label||c}${sortIcon(c)}</th>`).join("") + `<th>Notas</th><th></th>`;
 
-  let sortedFiltered = [...filtered];
+  let sortedFiltered = [...searched];
   if (logSort.col === 'date') {
     sortedFiltered.sort((a, b) => {
       const timeA = a.match_date ? new Date(a.match_date).getTime() : 0;
@@ -91,7 +94,8 @@ function renderLog() {
   const visibleRows = limit < totalRows ? sortedFiltered.slice(0, limit) : sortedFiltered;
 
   document.getElementById("logBody").innerHTML = visibleRows.map((r, idx) => {
-    const notesIcon = r.notes ? `<span title="${r.notes.replace(/"/g, '&quot;')}" style="cursor:help;color:var(--brand);font-size:14px;">📝</span>` : `<span style="color:var(--muted);font-size:14px;opacity:0.3;">📝</span>`;
+    const notesHl = (searchQuery && r.notes && logNorm(r.notes).includes(logNorm(searchQuery))) ? "log-hl" : "";
+    const notesIcon = r.notes ? `<span class="${notesHl}" title="${r.notes.replace(/"/g, '&quot;')}" style="cursor:help;color:var(--brand);font-size:14px;">📝</span>` : `<span style="color:var(--muted);font-size:14px;opacity:0.3;">📝</span>`;
     const actionsHtml = profile.isDemo
       ? `<td style="color:var(--muted);font-size:11px;text-align:center;">Somente leitura</td>`
       : `<td class="row-actions"><button class="action-btn" title="Editar" onclick="event.stopPropagation();openAddMatchModal('${r.id}')">✎</button><button class="action-btn" title="Duplicar" onclick="event.stopPropagation();duplicateMatch('${r.id}')">⧉</button><button class="action-btn del" title="Excluir" onclick="event.stopPropagation();deleteMatch('${r.id}')">🗑</button></td>`;
@@ -101,11 +105,11 @@ function renderLog() {
       : `class="log-row" data-match-id="${r.id}" onclick="openAddMatchModal('${r.id}')"`;
 
     return `<tr ${rowAttrs}>
-      <td class="r-num" style="color:var(--sub);font-size:12px">${profile.isDemo ? "" : `<input type="checkbox" class="row-check" ${selectedMatchIds.has(r.id) ? "checked" : ""} onclick="event.stopPropagation()" onchange="toggleMatchSelection('${r.id}', this.checked)">`}#${r.match_number || (filtered.length - idx)}</td>
-      <td style="font-size:12px;color:var(--sub);white-space:nowrap;">${formatDate(r.match_date)}</td>
-      <td style="font-family:'Rajdhani',sans-serif;font-weight:600;">${r.map}</td>
-      ${inputMetrics.filter(m=>m!=="map").map(m => { const val=r[m]; let style="font-family:'Rajdhani',sans-serif;"; const colorVar=METRIC_COLORS[m]; if(colorVar)style+=`color:${colorVar};`; return `<td style="${style}">${val!==undefined&&val!==null?(m==="time"?formatDuration(val):val):"—"}</td>`; }).join("")}
-      ${calcMetrics.map(m => `<td class="r-num" style="color:${METRIC_COLORS[m]||'var(--sub)'}">${r[m]!==undefined&&r[m]!==null?r[m]:"—"}</td>`).join("")}
+      <td class="r-num" style="color:var(--sub);font-size:12px">${profile.isDemo ? "" : `<input type="checkbox" class="row-check" ${selectedMatchIds.has(r.id) ? "checked" : ""} onclick="event.stopPropagation()" onchange="toggleMatchSelection('${r.id}', this.checked)">`}#${logHighlight(r.match_number || (filtered.length - idx), searchQuery)}</td>
+      <td style="font-size:12px;color:var(--sub);white-space:nowrap;">${logHighlight(formatDate(r.match_date), searchQuery)}</td>
+      <td style="font-family:'Rajdhani',sans-serif;font-weight:600;">${logHighlight(r.map, searchQuery)}</td>
+      ${inputMetrics.filter(m=>m!=="map").map(m => { const val=r[m]; let style="font-family:'Rajdhani',sans-serif;"; const colorVar=METRIC_COLORS[m]; if(colorVar)style+=`color:${colorVar};`; return `<td style="${style}">${val!==undefined&&val!==null?(m==="time"?logHighlight(formatDuration(val), searchQuery):logHighlight(val, searchQuery)):"—"}</td>`; }).join("")}
+      ${calcMetrics.map(m => `<td class="r-num" style="color:${METRIC_COLORS[m]||'var(--sub)'}">${r[m]!==undefined&&r[m]!==null?logHighlight(r[m], searchQuery):"—"}</td>`).join("")}
       <td style="text-align:center;">${notesIcon}</td>
       ${actionsHtml}
     </tr>`;
@@ -171,60 +175,33 @@ function logLoadMore() {
    uma barra "Desfazer" por UNDO_WINDOW_MS. Ao desfazer, restaura
    localmente e reenvia para a nuvem (upsert).
    ============================================================ */
-let deleteUndoStack = [];
+let undoStack = [];
 let undoBarTimer = null;
 const UNDO_WINDOW_MS = 10000;
 
-function pushDeleteUndo(profileId, matches) {
-  if (!matches || matches.length === 0) return;
-  deleteUndoStack.push({ profileId, matches: matches.map(m => ({ ...m })) });
+/* Entrada genérica de desfazer: { label, restore() } */
+function pushUndo(entry) {
+  if (!entry || typeof entry.restore !== "function") return;
+  undoStack.push(entry);
   refreshUndoBar();
 }
 
-function refreshUndoBar() {
-  const bar = document.getElementById("undo-bar");
-  const msg = document.getElementById("undo-bar-msg");
-  if (!bar || !msg) return;
-  clearTimeout(undoBarTimer);
-  const progress = document.getElementById("undo-bar-progress");
-  if (deleteUndoStack.length === 0) {
-    bar.classList.remove("open");
-    if (progress) progress.classList.remove("run");
-    undoBarTimer = null;
-    return;
-  }
-  const total = deleteUndoStack.reduce((n, e) => n + e.matches.length, 0);
-  msg.textContent = total === 1 ? "Partida removida" : `${total} partidas removidas`;
-  bar.classList.add("open");
-  if (progress) {
-    progress.style.animationDuration = UNDO_WINDOW_MS + "ms";
-    progress.classList.remove("run");
-    void progress.offsetWidth; // força reflow para a animação começar do zero
-    progress.classList.add("run");
-  }
-  undoBarTimer = setTimeout(() => {
-    deleteUndoStack = [];
-    bar.classList.remove("open");
-    if (progress) progress.classList.remove("run");
-    undoBarTimer = null;
-  }, UNDO_WINDOW_MS);
-}
-
-async function undoDelete() {
-  const entry = deleteUndoStack.pop();
-  if (!entry) return;
-
-  const profile = getProfile(entry.profileId);
-  if (profile) {
-    const existingIds = new Set(profile.matches.map(m => m.id));
-    const toRestore = entry.matches.filter(m => !existingIds.has(m.id));
-    if (toRestore.length > 0) {
+function pushDeleteUndo(profileId, matches) {
+  if (!matches || matches.length === 0) return;
+  const copies = matches.map(m => ({ ...m }));
+  pushUndo({
+    label: copies.length === 1 ? "Partida removida" : `${copies.length} partidas removidas`,
+    restore: async function () {
+      const profile = getProfile(profileId);
+      if (!profile) return;
+      const existingIds = new Set(profile.matches.map(m => m.id));
+      const toRestore = copies.filter(m => !existingIds.has(m.id));
+      if (toRestore.length === 0) return;
       profile.matches.push(...toRestore);
       normalizeProfileMatches(profile);
       saveState();
       renderLog();
       showToast(toRestore.length === 1 ? "✓ Partida restaurada" : `✓ ${toRestore.length} partidas restauradas`);
-
       if (toRestore.length === 1) {
         syncToCloud("upsert_match", { profileId: profile.id, match: toRestore[0] })
           .then(cloudId => {
@@ -239,8 +216,46 @@ async function undoDelete() {
           .catch(err => console.error("Erro ao restaurar partidas na nuvem:", err));
       }
     }
-  }
+  });
+}
 
+function refreshUndoBar() {
+  const bar = document.getElementById("undo-bar");
+  const msg = document.getElementById("undo-bar-msg");
+  if (!bar || !msg) return;
+  clearTimeout(undoBarTimer);
+  const progress = document.getElementById("undo-bar-progress");
+  if (undoStack.length === 0) {
+    bar.classList.remove("open");
+    if (progress) progress.classList.remove("run");
+    undoBarTimer = null;
+    return;
+  }
+  const top = undoStack[undoStack.length - 1];
+  msg.textContent = top.label || "Ação realizada";
+  bar.classList.add("open");
+  if (progress) {
+    progress.style.animationDuration = UNDO_WINDOW_MS + "ms";
+    progress.classList.remove("run");
+    void progress.offsetWidth; // força reflow para a animação começar do zero
+    progress.classList.add("run");
+  }
+  undoBarTimer = setTimeout(() => {
+    undoStack = [];
+    bar.classList.remove("open");
+    if (progress) progress.classList.remove("run");
+    undoBarTimer = null;
+  }, UNDO_WINDOW_MS);
+}
+
+async function performUndo() {
+  const entry = undoStack.pop();
+  if (!entry) return;
+  try {
+    await entry.restore();
+  } catch (e) {
+    console.error("Erro ao desfazer:", e);
+  }
   refreshUndoBar();
 }
 
@@ -253,7 +268,7 @@ async function undoDelete() {
     bar.setAttribute("aria-live", "polite");
     bar.innerHTML = '<span id="undo-bar-msg"></span><button id="undo-bar-btn" type="button">Desfazer</button><div id="undo-bar-progress"></div>';
     document.body.appendChild(bar);
-    document.getElementById("undo-bar-btn").addEventListener("click", undoDelete);
+    document.getElementById("undo-bar-btn").addEventListener("click", performUndo);
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
@@ -337,7 +352,13 @@ function updateBulkBar() {
 function bulkSelectAll() {
   const profile = getActiveProfile();
   if (!profile || profile.isDemo) return;
-  const visible = dashboardMapFilter ? profile.matches.filter(r => r.map === dashboardMapFilter) : profile.matches;
+  let visible = dashboardMapFilter ? profile.matches.filter(r => r.map === dashboardMapFilter) : profile.matches;
+  const q = (typeof logSearch === "string" ? logSearch : "").trim();
+  if (q) {
+    const nq = logNorm(q);
+    const metrics = getVisibleMetrics(profile, logHiddenMetrics);
+    visible = visible.filter(r => logMatchMatchesQuery(r, nq, metrics));
+  }
   visible.forEach(r => selectedMatchIds.add(r.id));
   renderLog();
 }
@@ -351,10 +372,110 @@ function bulkClear() {
 function resetLogFilters() {
   dashboardMapFilter = "";
   logHiddenMetrics.clear();
+  logSearch = "";
+  const searchInput = document.getElementById("logSearchInput");
+  if (searchInput) searchInput.value = "";
+  const searchClear = document.getElementById("logSearchClear");
+  if (searchClear) searchClear.style.display = "none";
   saveHiddenMetrics();
   showToast("↺ Filtros do histórico resetados");
   renderDashboard();
   renderLog();
+}
+
+/* ============================================================
+   BUSCA NO HISTÓRICO
+   Procura por mapa, anotações, nº, data e valores das métricas
+   visíveis. Ignora maiúsculas e acentos. Debounce de 150 ms.
+   ============================================================ */
+let logSearchDebounce = null;
+
+function logNorm(s) {
+  return String(s == null ? "" : s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function logMatchMatchesQuery(r, nq, metrics) {
+  if (!nq) return true;
+  if (logNorm(r.map).includes(nq)) return true;
+  if (logNorm(r.notes).includes(nq)) return true;
+  if (logNorm(r.match_number).includes(nq)) return true;
+  if (logNorm(formatDate(r.match_date)).includes(nq)) return true;
+  return metrics.some(k => {
+    const v = r[k];
+    if (v === undefined || v === null) return false;
+    if (logNorm(v).includes(nq)) return true;
+    if (k === "time") return logNorm(formatDuration(v)).includes(nq);
+    return false;
+  });
+}
+
+function onLogSearchInput() {
+  const input = document.getElementById("logSearchInput");
+  const clearBtn = document.getElementById("logSearchClear");
+  const val = input ? input.value : "";
+  if (clearBtn) clearBtn.style.display = val ? "block" : "none";
+  clearTimeout(logSearchDebounce);
+  logSearchDebounce = setTimeout(() => {
+    logSearch = val;
+    renderLog();
+  }, 150);
+}
+
+function clearLogSearch() {
+  const input = document.getElementById("logSearchInput");
+  const clearBtn = document.getElementById("logSearchClear");
+  if (input) input.value = "";
+  if (clearBtn) clearBtn.style.display = "none";
+  logSearch = "";
+  clearTimeout(logSearchDebounce);
+  renderLog();
+}
+
+/* ============================================================
+   REALCE (marca-texto) do trecho que casou com a busca
+   ============================================================ */
+function logEscapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function logBuildNormMap(str) {
+  const norm = [];
+  const map = [];
+  for (let i = 0; i < str.length; i++) {
+    const n = str[i].normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    for (let j = 0; j < n.length; j++) { norm.push(n[j]); map.push(i); }
+  }
+  return { norm: norm.join(""), map };
+}
+
+function logHighlight(text, query) {
+  const str = String(text == null ? "" : text);
+  const q = String(query || "").trim();
+  if (!q) return logEscapeHtml(str);
+  const { norm, map } = logBuildNormMap(str);
+  const nq = logNorm(q);
+  if (!nq) return logEscapeHtml(str);
+  const ranges = [];
+  let from = 0;
+  while (true) {
+    const idx = norm.indexOf(nq, from);
+    if (idx === -1) break;
+    const startOrig = map[idx];
+    const endOrig = map[Math.min(idx + nq.length - 1, map.length - 1)];
+    ranges.push([startOrig, endOrig]);
+    from = idx + nq.length;
+  }
+  if (!ranges.length) return logEscapeHtml(str);
+  let out = "";
+  let pos = 0;
+  for (const [s, e] of ranges) {
+    if (s < pos) continue;
+    out += logEscapeHtml(str.slice(pos, s));
+    out += `<mark class="log-hl">${logEscapeHtml(str.slice(s, e + 1))}</mark>`;
+    pos = e + 1;
+  }
+  out += logEscapeHtml(str.slice(pos));
+  return out;
 }
 
 async function bulkDuplicate() {
